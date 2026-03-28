@@ -17,6 +17,7 @@ class UserInfoPage extends StatefulWidget {
 class _UserInfoPageState extends State<UserInfoPage> {
   final nameController = TextEditingController();
   final ageController = TextEditingController();
+  bool _isLoading = false;
 
   String gender = 'Male';
   String role = 'patient';
@@ -275,8 +276,8 @@ class _UserInfoPageState extends State<UserInfoPage> {
 
               const SizedBox(height: 36),
               DuoButton(
-                label: "LET'S START LEARNING!",
-                onPressed: () async {
+                label: _isLoading ? "Creating account..." : "LET'S START LEARNING!",
+                onPressed: _isLoading ? () {} : () async {
                   final name = nameController.text.trim();
                   final age = int.tryParse(ageController.text.trim()) ?? 0;
 
@@ -289,7 +290,10 @@ class _UserInfoPageState extends State<UserInfoPage> {
                     return;
                   }
 
+                  setState(() => _isLoading = true);
+
                   try {
+                    print("📱 Starting signup process...");
                     final user = await Locator.userDatabaseService.signUp(
                       phone: widget.phone,
                       password: widget.password,
@@ -301,20 +305,36 @@ class _UserInfoPageState extends State<UserInfoPage> {
                     );
 
                     if (user != null) {
-                      context.push('/home');
+                      print("✅ Signup successful! Navigating to home...");
+                      if (mounted) {
+                        context.pushReplacement('/home');
+                      }
                     } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Failed to create account. Please try again.',
+                      print("❌ Signup returned null");
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Failed to create account. Please try again.',
+                            ),
                           ),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    print("❌ Signup exception: $e");
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error: ${e.toString()}'),
+                          duration: const Duration(seconds: 5),
                         ),
                       );
                     }
-                  } catch (e) {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text(e.toString())));
+                  } finally {
+                    if (mounted) {
+                      setState(() => _isLoading = false);
+                    }
                   }
                 },
               ),

@@ -1,3 +1,6 @@
+import 'package:aphora/main.dart';
+import 'package:aphora/ui/task_list_page.dart';
+import 'package:aphora/ui/thearapistList_page.dart';
 import 'package:flutter/material.dart';
 
 class HomePage extends StatelessWidget {
@@ -6,9 +9,10 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       backgroundColor: Color(0xFFF5F7FB),
       appBar: AppBar(
-        title: Text("APHORA"),
-        elevation: 0,
-        backgroundColor: Colors.indigo,
+      automaticallyImplyLeading: false,
+      title: Center(child: Text("APHORA",style: TextStyle(color: Colors.white,fontWeight: FontWeight.bold),)),
+      elevation: 0,
+      backgroundColor: DuoColors.green,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -33,7 +37,7 @@ class HomePage extends StatelessWidget {
               width: double.infinity,
               padding: EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.indigo,
+                color: const Color.fromARGB(255, 137, 247, 53),
                 borderRadius: BorderRadius.circular(15),
               ),
               child: Column(
@@ -58,7 +62,14 @@ class HomePage extends StatelessWidget {
                       backgroundColor: Colors.white,
                       foregroundColor: Colors.indigo,
                     ),
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => TaskListPage(),
+                        ),
+                      );
+                    },
                     child: Text("Start Now"),
                   ),
                 ],
@@ -96,13 +107,30 @@ class HomePage extends StatelessWidget {
               child: ListView(
                 children: [
                   exerciseTile(
+                    context,
                     "Pronunciation Practice",
                     Icons.record_voice_over,
                   ),
-                  exerciseTile("Word Naming", Icons.text_fields),
-                  exerciseTile("Conversation Mode", Icons.chat),
+                  exerciseTile(context, "Word Naming", Icons.text_fields),
+                  exerciseTile(context, "Conversation Mode", Icons.chat),
                 ],
               ),
+            ),
+             Text(
+              "Therapist Speach",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 10),
+            IconButton(
+              icon: Icon(Icons.mic),
+              onPressed: () {
+                 Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TherapistListPage(),
+            ),
+          );
+              },
             ),
           ],
         ),
@@ -133,8 +161,7 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  // 🧠 Exercise Tile Widget
-  Widget exerciseTile(String title, IconData icon) {
+  Widget exerciseTile(BuildContext context, String title, IconData icon) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -142,7 +169,14 @@ class HomePage extends StatelessWidget {
         leading: Icon(icon, color: Colors.indigo),
         title: Text(title),
         trailing: Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () {},
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TaskListPage(),
+            ),
+          );
+        },
       ),
     );
   }

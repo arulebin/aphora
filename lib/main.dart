@@ -1,3 +1,4 @@
+import 'package:aphora/firebase_options.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/ui/home_page.dart';
 import 'package:aphora/ui/login_page.dart';
@@ -10,7 +11,9 @@ import 'package:firebase_core/firebase_core.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   Locator.setUpServices();
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(MyApp());
 }
 

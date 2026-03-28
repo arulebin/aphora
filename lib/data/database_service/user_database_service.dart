@@ -27,8 +27,10 @@ class UserDatabaseService {
   }) async {
     try {
       final email = _phoneToEmail(phone);
+      print("🔐 Starting signup for: $email");
 
       // 🔥 Check if user already exists in DB (by phone)
+      print("🔍 Checking if user exists...");
       final existing = await _db
           .collection(userCollection)
           .where('phoneNumber', isEqualTo: phone)
@@ -36,17 +38,22 @@ class UserDatabaseService {
           .get();
 
       if (existing.docs.isNotEmpty) {
-        throw Exception("User already exists");
+        throw Exception("User with this phone already exists");
       }
 
       // Create Firebase Auth user
+      print("🔐 Creating Firebase Auth user...");
       final cred = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       final firebaseUser = cred.user;
-      if (firebaseUser == null) return null;
+      if (firebaseUser == null) {
+        throw Exception("Failed to create auth user");
+      }
+
+      print("✅ Auth user created: ${firebaseUser.uid}");
 
       // Create UserModel
       final newUser = UserModel(
@@ -70,15 +77,20 @@ class UserDatabaseService {
       );
 
       // Save to Firestore
+      print("💾 Saving user to Firestore...");
       await _db
           .collection(userCollection)
           .doc(firebaseUser.uid)
           .set(newUser.toMap());
 
+      print("✅ User successfully created and saved!");
       return newUser;
+    } on FirebaseAuthException catch (e) {
+      print("❌ Firebase Auth Error: ${e.code} - ${e.message}");
+      rethrow;
     } catch (e) {
-      print("Signup Error: $e");
-      return null;
+      print("❌ Signup Error: $e");
+      rethrow;
     }
   }
 
