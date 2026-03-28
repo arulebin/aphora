@@ -1,6 +1,6 @@
 import 'package:aphora/main.dart';
+import 'package:aphora/ui/TherapistPage.dart' show AphasiaTherapistPage, therapistPage;
 import 'package:aphora/ui/task_list_page.dart';
-import 'package:aphora/ui/thearapistList_page.dart';
 import 'package:flutter/material.dart';
 
 class HomePage extends StatelessWidget {
@@ -121,17 +121,21 @@ class HomePage extends StatelessWidget {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 10),
-            IconButton(
-              icon: Icon(Icons.mic),
-              onPressed: () {
-                 Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TherapistListPage(),
-            ),
-          );
-              },
-            ),
+             ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.indigo,
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => therapistPage(),
+                        ),
+                      );
+                    },
+                    child: Text("Start Now"),
+                  ),
           ],
         ),
       ),

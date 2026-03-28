@@ -31,6 +31,21 @@
 
   <title>aphora</title>
   <link rel="manifest" href="manifest.json">
+  <script>
+    // Web Speech API for TTS
+    function speechWeb(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel(); // Stop any ongoing speech
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-US';
+        utterance.rate = 0.8; // Slightly slower speech
+        utterance.pitch = 1.0;
+        window.speechSynthesis.speak(utterance);
+      } else {
+        console.log('Speech Synthesis not supported in this browser');
+      }
+    }
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
