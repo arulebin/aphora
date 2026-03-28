@@ -5,6 +5,7 @@ class UserModel {
   final String role; // "patient", "caregiver", "therapist"
   final int age;
   final String gender;
+  final String phoneNumber;
   final String languagePreference; // e.g., "Tamil", "English"
 
   // Aphasia-specific fields
@@ -29,6 +30,7 @@ class UserModel {
     required this.role,
     required this.age,
     required this.gender,
+    required this.phoneNumber,
     required this.languagePreference,
     required this.aphasiaType,
     required this.severityLevel,
@@ -50,6 +52,7 @@ class UserModel {
       'role': role,
       'age': age,
       'gender': gender,
+      'phoneNumber': phoneNumber,
       'languagePreference': languagePreference,
       'aphasiaType': aphasiaType,
       'severityLevel': severityLevel,
@@ -72,6 +75,7 @@ class UserModel {
       role: map['role'] ?? 'patient',
       age: map['age'] ?? 0,
       gender: map['gender'] ?? '',
+      phoneNumber: map['phoneNumber'] ?? '',
       languagePreference: map['languagePreference'] ?? 'Tamil',
       aphasiaType: map['aphasiaType'] ?? '',
       severityLevel: map['severityLevel'] ?? '',
@@ -92,6 +96,7 @@ class UserModel {
     String? role,
     int? age,
     String? gender,
+    String? phoneNumber,
     String? languagePreference,
     String? aphasiaType,
     String? severityLevel,
@@ -109,6 +114,7 @@ class UserModel {
       role: role ?? this.role,
       age: age ?? this.age,
       gender: gender ?? this.gender,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
       languagePreference: languagePreference ?? this.languagePreference,
       aphasiaType: aphasiaType ?? this.aphasiaType,
       severityLevel: severityLevel ?? this.severityLevel,
