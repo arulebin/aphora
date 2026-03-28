@@ -28,7 +28,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
 
   // 🔊 Initialize TTS
   void initTTS() async {
-    await flutterTts.setLanguage("en-US");
+    await flutterTts.setLanguage("en-US");  
     await flutterTts.setSpeechRate(0.4);
     await flutterTts.setPitch(1.0);
   }

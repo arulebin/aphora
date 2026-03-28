@@ -1,3 +1,4 @@
+import 'package:aphora/ui/videocall_page.dart';
 import 'package:flutter/material.dart';
 
 class therapistPage extends StatelessWidget {
@@ -66,8 +67,15 @@ class therapistPage extends StatelessWidget {
                   title: "Start Video Call",
                   color: Colors.blue,
                   onTap: () {
-                    // Add video call logic
-                  },
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const VideoCallPage(
+        channelName: "testChannel",
+      ),
+    ),
+  );
+},
                 ),
 
                 _buildFeatureCard(
