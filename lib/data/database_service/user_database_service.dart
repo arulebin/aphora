@@ -139,10 +139,7 @@ class UserDatabaseService {
   /// 🔄 UPDATE USER
   /// =========================
   Future<void> updateUser(UserModel user) async {
-    await _db
-        .collection(userCollection)
-        .doc(user.uid)
-        .update(user.toMap());
+    await _db.collection(userCollection).doc(user.uid).update(user.toMap());
   }
 
   /// =========================
