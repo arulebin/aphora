@@ -1,3 +1,4 @@
+import 'package:aphora/data/database_service/booking_database_service.dart';
 import 'package:aphora/data/database_service/user_database_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
@@ -9,6 +10,14 @@ class Locator extends ChangeNotifier {
   static final Locator _instance = Locator._internal();
   factory Locator() => _instance;
 
+  static UserDatabaseService get userDatabaseService =>
+      userDatabaseServiceInstance;
+  static BookingDatabaseService get bookingDatabaseService =>
+      bookingDatabaseServiceInstance;
+
+  static late UserDatabaseService userDatabaseServiceInstance;
+  static late BookingDatabaseService bookingDatabaseServiceInstance;
+
   static void setUpServices() {
     if (!GetIt.instance.isRegistered<Locator>()) {
       GetIt.instance.registerSingleton<Locator>(Locator());
@@ -16,11 +25,13 @@ class Locator extends ChangeNotifier {
     GetIt.instance.registerLazySingleton<UserDatabaseService>(
       () => UserDatabaseService(),
     );
-    // GetIt.instance.registerLazySingleton(() => StartupServices());
+    GetIt.instance.registerLazySingleton<BookingDatabaseService>(
+      () => BookingDatabaseService(),
+    );
+
+    userDatabaseServiceInstance = GetIt.instance<UserDatabaseService>();
+    bookingDatabaseServiceInstance = GetIt.instance<BookingDatabaseService>();
   }
 
   static Locator get instance => GetIt.I<Locator>();
-  // static StartupServices get startupServices => GetIt.I<StartupServices>();
-  static UserDatabaseService get userDatabaseService =>
-      GetIt.I<UserDatabaseService>();
 }

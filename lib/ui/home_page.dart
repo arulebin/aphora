@@ -6,7 +6,9 @@ import 'package:aphora/ui/TherapistPage.dart'
 import 'package:aphora/ui/settings_page.dart';
 import 'package:aphora/ui/task_list_page.dart';
 import 'package:aphora/ui/profile_page.dart';
+import 'package:aphora/ui/patient_bookings_page.dart';
 import 'package:aphora/ui/videocall_page.dart';
+import 'package:aphora/data/models/booking_model.dart';
 import 'package:aphora/data/models/therapist_model.dart';
 import 'package:flutter/material.dart';
 
@@ -53,6 +55,80 @@ class _HomePageState extends State<HomePage> {
     _fetchTherapist();
   }
 
+  void _showBookingDialog(BuildContext context) async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            primaryColor: DuoColors.green,
+            colorScheme: ColorScheme.light(primary: DuoColors.green),
+            buttonTheme: const ButtonThemeData(
+              textTheme: ButtonTextTheme.primary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (date != null && mounted) {
+      final time = await showTimePicker(
+        context: context,
+        initialTime: const TimeOfDay(hour: 10, minute: 0),
+        builder: (context, child) {
+          return Theme(
+            data: ThemeData.light().copyWith(
+              primaryColor: DuoColors.green,
+              colorScheme: ColorScheme.light(primary: DuoColors.green),
+              buttonTheme: const ButtonThemeData(
+                textTheme: ButtonTextTheme.primary,
+              ),
+            ),
+            child: child!,
+          );
+        },
+      );
+
+      if (time != null && mounted) {
+        final user = Locator.userDatabaseService.currentUser.value;
+        if (user != null && _linkedTherapist != null) {
+          final bookingDateTime = DateTime(
+            date.year,
+            date.month,
+            date.day,
+            time.hour,
+            time.minute,
+          );
+
+          final newBooking = BookingModel(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            patientId: user.uid,
+            patientName: user.name,
+            therapistId: _linkedTherapist!.code,
+            dateTime: bookingDateTime,
+          );
+
+          await Locator.bookingDatabaseService.createBooking(newBooking);
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  "Session booked for ${date.month}/${date.day}/${date.year} at ${time.format(context)}",
+                ),
+                backgroundColor: DuoColors.green,
+              ),
+            );
+          }
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = Locator.userDatabaseService.currentUser.value;
@@ -77,6 +153,21 @@ class _HomePageState extends State<HomePage> {
         ),
         actions: [
           IconButton(
+            icon: Icon(Icons.settings, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SettingsPage(
+                    onLanguageChanged: (Language p1) {
+                      LanguageService.setLanguage(p1);
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: Icon(Icons.person, color: Colors.white),
             onPressed: () {
               Navigator.push(
@@ -89,104 +180,104 @@ class _HomePageState extends State<HomePage> {
         elevation: 0,
         backgroundColor: DuoColors.green,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 👋 Welcome Section
-            Text(
-              "Hello, ${Locator.userDatabaseService.currentUser.value?.name ?? 'User'}👋",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 5),
-            Text(
-              "Let’s improve your speech today",
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-
-            SizedBox(height: 20),
-
-            // 🚀 Start Therapy Card
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color.fromARGB(255, 137, 247, 53),
-                borderRadius: BorderRadius.circular(15),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 👋 Welcome Section
+              Text(
+                "Hello, ${Locator.userDatabaseService.currentUser.value?.name ?? 'User'}👋",
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              SizedBox(height: 5),
+              Text(
+                "Let’s improve your speech today",
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+
+              SizedBox(height: 20),
+
+              // 🚀 Start Therapy Card
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color.fromARGB(255, 137, 247, 53),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Start Therapy",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      "Begin your personalized speech session",
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    SizedBox(height: 15),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.indigo,
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                TaskListPage(category: "Pronunciation"),
+                          ),
+                        );
+                      },
+                      child: Text("Start Now"),
+                    ),
+                  ],
+                ),
+              ),
+
+              SizedBox(height: 20),
+
+              // 📊 Progress Section
+              Text(
+                "Your Progress",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 10),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    "Start Therapy",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  progressCard(
+                    "Completion",
+                    "${completionPercent.toStringAsFixed(0)}%",
                   ),
-                  SizedBox(height: 10),
-                  Text(
-                    "Begin your personalized speech session",
-                    style: TextStyle(color: Colors.white70),
+                  progressCard(
+                    "Score",
+                    "${user?.progressScore.toStringAsFixed(0) ?? '0'}",
                   ),
-                  SizedBox(height: 15),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.indigo,
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              TaskListPage(category: "Pronunciation"),
-                        ),
-                      );
-                    },
-                    child: Text("Start Now"),
-                  ),
+                  progressCard("Exercises", "$completedExercisesCount"),
                 ],
               ),
-            ),
 
-            SizedBox(height: 20),
+              SizedBox(height: 20),
 
-            // 📊 Progress Section
-            Text(
-              "Your Progress",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 10),
+              // 🧠 Exercises Section
+              Text(
+                "Daily Exercises",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 10),
 
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                progressCard(
-                  "Completion",
-                  "${completionPercent.toStringAsFixed(0)}%",
-                ),
-                progressCard(
-                  "Score",
-                  "${user?.progressScore.toStringAsFixed(0) ?? '0'}",
-                ),
-                progressCard("Exercises", "$completedExercisesCount"),
-              ],
-            ),
-
-            SizedBox(height: 20),
-
-            // 🧠 Exercises Section
-            Text(
-              "Daily Exercises",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 10),
-
-            Expanded(
-              child: ListView(
+              Column(
                 children: [
                   exerciseTile(
                     context,
@@ -208,150 +299,133 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ],
               ),
-            ),
-            Text(
-              "Therapist Session",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 10),
-            if (user?.linkedCaregiverId == null ||
-                user!.linkedCaregiverId!.isEmpty)
-              Card(
-                color: Colors.orange[50],
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      Text(
-                        "You don't have a linked therapist.",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      SizedBox(height: 10),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ProfilePage(),
-                            ),
-                          );
-                        },
-                        child: Text("Link a Therapist"),
-                      ),
-                    ],
+              SizedBox(height: 20),
+              Text(
+                "Therapist Session",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 10),
+              if (user?.linkedCaregiverId == null ||
+                  user!.linkedCaregiverId!.isEmpty)
+                Card(
+                  color: Colors.orange[50],
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ),
-              )
-            else
-              Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: DuoColors.greenLight,
-                            child: Icon(
-                              Icons.medical_services,
-                              color: DuoColors.green,
-                            ),
-                          ),
-                          SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _linkedTherapist?.name ?? "Your Therapist",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              Text(
-                                "ID: ${user.linkedCaregiverId}",
-                                style: TextStyle(color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _buildTherapistAction(
-                            Icons.video_call,
-                            "Video Call",
-                            () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const VideoCallPage(
-                                    channelName: "demo_channel",
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                          _buildTherapistAction(Icons.chat, "Chat", () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text("Chat feature coming soon!"),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: [
+                        Text(
+                          "You don't have a linked therapist.",
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 10),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ProfilePage(),
                               ),
                             );
-                          }),
-                          _buildTherapistAction(
-                            Icons.calendar_month,
-                            "Book Session",
-                            () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text("Booking feature coming soon!"),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            SizedBox(height: 20),
-            Text(
-              "Settings",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 10),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.indigo,
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SettingsPage(
-                      onLanguageChanged: (Language p1) {
-                        LanguageService.setLanguage(p1);
-                      },
+                          },
+                          child: Text("Link a Therapist"),
+                        ),
+                      ],
                     ),
                   ),
-                );
-              },
-              icon: Icon(Icons.settings),
-              label: Text("Settings"),
-            ),
-          ],
+                )
+              else
+                Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: DuoColors.greenLight,
+                              child: Icon(
+                                Icons.medical_services,
+                                color: DuoColors.green,
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _linkedTherapist?.name ?? "Your Therapist",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                Text(
+                                  "ID: ${user.linkedCaregiverId}",
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _buildTherapistAction(
+                              Icons.video_call,
+                              "Video Call",
+                              () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const VideoCallPage(
+                                      channelName: "demo_channel",
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            _buildTherapistAction(Icons.chat, "Chat", () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text("Chat feature coming soon!"),
+                                ),
+                              );
+                            }),
+                            _buildTherapistAction(
+                              Icons.calendar_month,
+                              "Book Session",
+                              () => _showBookingDialog(context),
+                            ),
+                            _buildTherapistAction(
+                              Icons.event_note,
+                              "Bookings",
+                              () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const PatientBookingsPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );

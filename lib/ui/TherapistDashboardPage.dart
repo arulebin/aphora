@@ -1,3 +1,4 @@
+import 'package:aphora/data/models/booking_model.dart';
 import 'package:aphora/data/models/therapist_model.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/locator.dart';
@@ -215,6 +216,72 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
                                 );
                               },
                             ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text('Upcoming Bookings', style: DuoTextStyles.heading),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: StreamBuilder<List<BookingModel>>(
+                        stream: Locator.bookingDatabaseService
+                            .getBookingsForTherapist(therapist!.code),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+                          if (snapshot.hasError) {
+                            return Center(
+                              child: Text('Error: ${snapshot.error}'),
+                            );
+                          }
+                          final bookings = snapshot.data ?? [];
+                          if (bookings.isEmpty) {
+                            return Center(
+                              child: Text(
+                                'No upcoming sessions booked.',
+                                style: DuoTextStyles.label,
+                              ),
+                            );
+                          }
+                          return ListView.builder(
+                            itemCount: bookings.length,
+                            itemBuilder: (context, index) {
+                              final booking = bookings[index];
+                              return Card(
+                                elevation: 0,
+                                margin: const EdgeInsets.only(bottom: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: const BorderSide(
+                                    color: DuoColors.border,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.all(16),
+                                  leading: CircleAvatar(
+                                    backgroundColor: DuoColors.green
+                                        .withOpacity(0.1),
+                                    child: const Icon(
+                                      Icons.calendar_month,
+                                      color: DuoColors.green,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    booking.patientName,
+                                    style: DuoTextStyles.body,
+                                  ),
+                                  subtitle: Text(
+                                    '${booking.dateTime.month}/${booking.dateTime.day}/${booking.dateTime.year} at ${TimeOfDay.fromDateTime(booking.dateTime).format(context)}',
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
                     ),
                   ],
                 ),

@@ -13,8 +13,8 @@ import 'package:firebase_core/firebase_core.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  Locator.setUpServices();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  Locator.setUpServices();
   runApp(MyApp());
 }
 

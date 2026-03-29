@@ -1,6 +1,7 @@
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/main.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class ProfilePage extends StatelessWidget {
   @override
@@ -106,7 +107,9 @@ class ProfilePage extends StatelessWidget {
               ),
               onPressed: () async {
                 await Locator.userDatabaseService.logout();
-                Navigator.of(context).popUntil((route) => route.isFirst);
+                if (context.mounted) {
+                  context.go('/login');
+                }
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(
