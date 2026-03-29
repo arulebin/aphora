@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:aphora/logic/language_service.dart';
+import 'dart:io' show Platform;
+import 'dart:js' as js;
 
 class TaskDetailPage extends StatefulWidget {
   final Map<String, dynamic> task;
@@ -22,30 +25,60 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
   void initState() {
     super.initState();
     speech = stt.SpeechToText();
-
     initTTS();
   }
 
-  // 🔊 Initialize TTS
+  bool _isWeb() {
+    try {
+      return !Platform.isAndroid && !Platform.isIOS && !Platform.isWindows && !Platform.isLinux && !Platform.isMacOS;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  // 🔊 Initialize TTS with selected language
   void initTTS() async {
-    await flutterTts.setLanguage("en-US");  
+    if (_isWeb()) return;
+
+    String languageCode = LanguageService.currentLanguage == Language.english ? "en-US" : "ta-IN";
+    await flutterTts.setLanguage(languageCode);
     await flutterTts.setSpeechRate(0.4);
     await flutterTts.setPitch(1.0);
   }
 
-  // 🔊 Speak Text
+  // 🔊 Speak Text with proper language
   void speakText() async {
-    await flutterTts.speak(widget.task['phrase']);
+    if (_isWeb()) {
+      _speakTextWeb(widget.task['phrase']);
+    } else {
+      try {
+        await flutterTts.stop();
+        await flutterTts.speak(widget.task['phrase']);
+      } catch (e) {
+        print('Error speaking: $e');
+      }
+    }
   }
 
-  // 🎤 Start Listening
+  void _speakTextWeb(String text) {
+    try {
+      js.context.callMethod('speechWeb', [text]);
+    } catch (e) {
+      print('Web TTS error: $e');
+    }
+  }
+
+  // 🎤 Start Listening with proper language
   void startListening() async {
     bool available = await speech.initialize();
 
     if (available) {
       setState(() => isListening = true);
 
+      String languageCode = LanguageService.currentLanguage == Language.english ? "en-US" : "ta-IN";
+
       speech.listen(
+        localeId: languageCode,
         onResult: (result) {
           setState(() {
             spokenText = result.recognizedWords;
@@ -63,7 +96,9 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
 
   @override
   void dispose() {
-    flutterTts.stop();
+    if (!_isWeb()) {
+      flutterTts.stop();
+    }
     speech.stop();
     super.dispose();
   }
