@@ -17,6 +17,11 @@ class UserModel {
   final int sessionsCompleted;
   double progressScore; // AI-generated score
   List<String> completedExercises;
+
+  // Analytics
+  final double averageAccuracy;
+  final double averageFluency;
+
   // Caregiver/Therapist linkage
   final String? linkedCaregiverId;
   // Metadata
@@ -38,6 +43,8 @@ class UserModel {
     required this.sessionsCompleted,
     required this.progressScore,
     required this.completedExercises,
+    this.averageAccuracy = 0.0,
+    this.averageFluency = 0.0,
     this.linkedCaregiverId,
     required this.createdAt,
     required this.updatedAt,
@@ -60,6 +67,8 @@ class UserModel {
       'sessionsCompleted': sessionsCompleted,
       'progressScore': progressScore,
       'completedExercises': completedExercises,
+      'averageAccuracy': averageAccuracy,
+      'averageFluency': averageFluency,
       'linkedCaregiverId': linkedCaregiverId,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -81,11 +90,17 @@ class UserModel {
       severityLevel: map['severityLevel'] ?? '',
       goals: List<String>.from(map['goals'] ?? []),
       sessionsCompleted: map['sessionsCompleted'] ?? 0,
-      progressScore: (map['progressScore'] ?? 0).toDouble(),
+      progressScore: ((map['progressScore'] ?? 0) as num).toDouble(),
       completedExercises: List<String>.from(map['completedExercises'] ?? []),
+      averageAccuracy: ((map['averageAccuracy'] ?? 0) as num).toDouble(),
+      averageFluency: ((map['averageFluency'] ?? 0) as num).toDouble(),
       linkedCaregiverId: map['linkedCaregiverId'],
-      createdAt: DateTime.parse(map['createdAt']),
-      updatedAt: DateTime.parse(map['updatedAt']),
+      createdAt: DateTime.parse(
+        map['createdAt'] ?? DateTime.now().toIso8601String(),
+      ),
+      updatedAt: DateTime.parse(
+        map['updatedAt'] ?? DateTime.now().toIso8601String(),
+      ),
     );
   }
 
@@ -104,6 +119,8 @@ class UserModel {
     int? sessionsCompleted,
     double? progressScore,
     List<String>? completedExercises,
+    double? averageAccuracy,
+    double? averageFluency,
     String? linkedCaregiverId,
     DateTime? updatedAt,
   }) {
@@ -122,6 +139,8 @@ class UserModel {
       sessionsCompleted: sessionsCompleted ?? this.sessionsCompleted,
       progressScore: progressScore ?? this.progressScore,
       completedExercises: completedExercises ?? this.completedExercises,
+      averageAccuracy: averageAccuracy ?? this.averageAccuracy,
+      averageFluency: averageFluency ?? this.averageFluency,
       linkedCaregiverId: linkedCaregiverId ?? this.linkedCaregiverId,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),

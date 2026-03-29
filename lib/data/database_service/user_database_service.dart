@@ -73,6 +73,8 @@ class UserDatabaseService {
         sessionsCompleted: 0,
         progressScore: 0,
         completedExercises: [],
+        averageAccuracy: 0.0,
+        averageFluency: 0.0,
         linkedCaregiverId: '',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),

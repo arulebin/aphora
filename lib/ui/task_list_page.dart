@@ -5,74 +5,155 @@ import 'package:aphora/logic/language_service.dart';
 import 'package:flutter/material.dart';
 
 class TaskListPage extends StatefulWidget {
+  final String category;
+
+  const TaskListPage({Key? key, this.category = "Pronunciation"})
+    : super(key: key);
+
   @override
   _TaskListPageState createState() => _TaskListPageState();
 }
 
 class _TaskListPageState extends State<TaskListPage> {
-  // Sample tasks data - replace with real data from your backend
-  final List<Map<String, dynamic>> baseTasks = [
-    {
-      'id': 1,
-      'english_phrase': 'Hello, how are you?',
-      'difficulty': 'Easy',
-      'icon': '👋',
-      'completed': false,
-    },
-    {
-      'id': 2,
-      'english_phrase': 'My name is John',
-      'difficulty': 'Easy',
-      'icon': '👤',
-      'completed': false,
-    },
-    {
-      'id': 3,
-      'english_phrase': 'I would like to order a coffee',
-      'difficulty': 'Medium',
-      'icon': '☕',
-      'completed': false,
-    },
-    {
-      'id': 4,
-      'english_phrase': 'Can you help me find the nearest hospital?',
-      'difficulty': 'Medium',
-      'icon': '🏥',
-      'completed': false,
-    },
-    {
-      'id': 5,
-      'english_phrase': 'I am learning English to improve my career',
-      'difficulty': 'Hard',
-      'icon': '📚',
-      'completed': false,
-    },
-    {
-      'id': 6,
-      'english_phrase': 'Could you please repeat that more slowly?',
-      'difficulty': 'Hard',
-      'icon': '🎧',
-      'completed': false,
-    },
-  ];
-
-  // Get tasks with language-specific phrases
-  List<Map<String, dynamic>> getLocalizedTasks() {
-    return baseTasks.map((task) {
-      return {
-        ...task,
-        'phrase': LanguageService.getTaskPhrase(task['id']),
-        'difficulty_label': LanguageService.getDifficultyInLanguage(
-          task['difficulty'],
-        ),
-      };
-    }).toList();
-  }
+  // We'll generate different tasks based on category
+  late List<Map<String, dynamic>> baseTasks;
 
   @override
   void initState() {
     super.initState();
+    _initTasks();
     _loadProgress();
+  }
+
+  void _initTasks() {
+    if (widget.category == "Word Naming") {
+      baseTasks = [
+        {
+          'id': 'word_1',
+          'english_phrase': 'Apple',
+          'difficulty': 'Easy',
+          'icon': '🍎',
+          'completed': false,
+        },
+        {
+          'id': 'word_2',
+          'english_phrase': 'Book',
+          'difficulty': 'Easy',
+          'icon': '📖',
+          'completed': false,
+        },
+        {
+          'id': 'word_3',
+          'english_phrase': 'Computer',
+          'difficulty': 'Medium',
+          'icon': '💻',
+          'completed': false,
+        },
+        {
+          'id': 'word_4',
+          'english_phrase': 'Elephant',
+          'difficulty': 'Hard',
+          'icon': '🐘',
+          'completed': false,
+        },
+        {
+          'id': 'word_5',
+          'english_phrase': 'Flower',
+          'difficulty': 'Easy',
+          'icon': '🌸',
+          'completed': false,
+        },
+      ];
+    } else if (widget.category == "Conversation") {
+      baseTasks = [
+        {
+          'id': 'conv_1',
+          'english_phrase': 'How was your day today?',
+          'difficulty': 'Medium',
+          'icon': '🗣️',
+          'completed': false,
+        },
+        {
+          'id': 'conv_2',
+          'english_phrase': 'Can you tell me about your family?',
+          'difficulty': 'Hard',
+          'icon': '👨‍👩‍👧',
+          'completed': false,
+        },
+        {
+          'id': 'conv_3',
+          'english_phrase': 'What is your favorite food?',
+          'difficulty': 'Easy',
+          'icon': '🍕',
+          'completed': false,
+        },
+      ];
+    } else {
+      // Default / Pronunciation Practice
+      baseTasks = [
+        {
+          'id': 'pron_1',
+          'english_phrase': 'Hello, how are you?',
+          'difficulty': 'Easy',
+          'icon': '👋',
+          'completed': false,
+        },
+        {
+          'id': 'pron_2',
+          'english_phrase': 'My name is John',
+          'difficulty': 'Easy',
+          'icon': '👤',
+          'completed': false,
+        },
+        {
+          'id': 'pron_3',
+          'english_phrase': 'I would like to order a coffee',
+          'difficulty': 'Medium',
+          'icon': '☕',
+          'completed': false,
+        },
+        {
+          'id': 'pron_4',
+          'english_phrase': 'Can you help me find the nearest hospital?',
+          'difficulty': 'Medium',
+          'icon': '🏥',
+          'completed': false,
+        },
+        {
+          'id': 'pron_5',
+          'english_phrase': 'I am learning English to improve my career',
+          'difficulty': 'Hard',
+          'icon': '📚',
+          'completed': false,
+        },
+        {
+          'id': 'pron_6',
+          'english_phrase': 'Could you please repeat that more slowly?',
+          'difficulty': 'Hard',
+          'icon': '🎧',
+          'completed': false,
+        },
+      ];
+    }
+  }
+
+  // Get tasks with language-specific phrases
+  List<Map<String, dynamic>> getLocalizedTasks() {
+    return baseTasks.map((task) {
+      // If LanguageService doesn't have translation for dynamic IDs, we fallback to english_phrase
+      String phrase;
+      try {
+        phrase = LanguageService.getTaskPhrase(task['id']);
+      } catch (e) {
+        phrase = task['english_phrase'];
+      }
+
+      return {
+        ...task,
+        'phrase': phrase,
+        'difficulty_label': task['difficulty'], // Or translate if needed
+      };
+    }).toList();
   }
 
   void _loadProgress() {
@@ -97,7 +178,7 @@ class _TaskListPageState extends State<TaskListPage> {
       appBar: AppBar(
         automaticallyImplyLeading: true,
         title: Text(
-          LanguageService.get('lesson'),
+          widget.category,
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,

@@ -58,13 +58,23 @@ class LanguageService {
       'easy': 'Easy',
       'medium': 'Medium',
       'hard': 'Hard',
-      // Tasks
-      'task_1_phrase': 'Hello, how are you?',
-      'task_2_phrase': 'My name is John',
-      'task_3_phrase': 'I would like to order a coffee',
-      'task_4_phrase': 'Can you help me find the nearest hospital?',
-      'task_5_phrase': 'I am learning English to improve my career',
-      'task_6_phrase': 'Could you please repeat that more slowly?',
+      // Tasks - Pronunciation
+      'task_pron_1_phrase': 'Hello, how are you?',
+      'task_pron_2_phrase': 'My name is John',
+      'task_pron_3_phrase': 'I would like to order a coffee',
+      'task_pron_4_phrase': 'Can you help me find the nearest hospital?',
+      'task_pron_5_phrase': 'I am learning English to improve my career',
+      'task_pron_6_phrase': 'Could you please repeat that more slowly?',
+      // Tasks - Word Naming
+      'task_word_1_phrase': 'Apple',
+      'task_word_2_phrase': 'Book',
+      'task_word_3_phrase': 'Computer',
+      'task_word_4_phrase': 'Elephant',
+      'task_word_5_phrase': 'Flower',
+      // Tasks - Conversation
+      'task_conv_1_phrase': 'How was your day today?',
+      'task_conv_2_phrase': 'Can you tell me about your family?',
+      'task_conv_3_phrase': 'What is your favorite food?',
     },
     Language.tamil: {
       'app_title': 'அபோரா',
@@ -109,13 +119,25 @@ class LanguageService {
       'easy': 'சுலபம்',
       'medium': 'நடுத்தர',
       'hard': 'கடினம்',
-      // Tasks
-      'task_1_phrase': 'வணக்கம், நீ எப்படி இருக்கிறாய்?',
-      'task_2_phrase': 'என் பெயர் ஜான்',
-      'task_3_phrase': 'நான் ஒரு காபி ஆர்டர் செய்ய விரும்புகிறேன்',
-      'task_4_phrase': 'நீ எனக்கு மிக அருகிலான ஆஸ்பத்திரி கண்டுபிடிக்க உதவ முடியுமா?',
-      'task_5_phrase': 'நான் என் ক்যாரியரை மேம்படுத்த ஆங்கிலம் கற்று வருகிறேன்',
-      'task_6_phrase': 'நீ தயவு செய்து அதை மிகவும் மெதுவாக மீண்டும் சொல்ல முடியுமா?',
+      // Tasks - Pronunciation
+      'task_pron_1_phrase': 'வணக்கம், எப்படி இருக்கிறீர்கள்?',
+      'task_pron_2_phrase': 'என் பெயர் ஜான்',
+      'task_pron_3_phrase': 'நான் ஒரு காபி ஆர்டர் செய்ய விரும்புகிறேன்',
+      'task_pron_4_phrase':
+          'அருகில் உள்ள மருத்துவமனையை கண்டுபிடிக்க உதவ முடியுமா?',
+      'task_pron_5_phrase': 'நான் என் கரியரை மேம்படுத்த ஆங்கிலம் கற்கிறேன்',
+      'task_pron_6_phrase':
+          'தயவுசெய்து அதை இன்னும் கொஞ்சம் மெதுவாக திரும்பச் சொல்ல முடியுமா?',
+      // Tasks - Word Naming
+      'task_word_1_phrase': 'ஆப்பிள்',
+      'task_word_2_phrase': 'புத்தகம்',
+      'task_word_3_phrase': 'கணிப்பொறி',
+      'task_word_4_phrase': 'யானை',
+      'task_word_5_phrase': 'பூ',
+      // Tasks - Conversation
+      'task_conv_1_phrase': 'இன்று உங்கள் நாள் எப்படி இருந்தது?',
+      'task_conv_2_phrase': 'உங்கள் குடும்பத்தைப் பற்றி சொல்ல முடியுமா?',
+      'task_conv_3_phrase': 'உங்களுக்கு மிகவும் பிடித்த உணவு எது?',
     },
   };
 
@@ -134,7 +156,7 @@ class LanguageService {
   }
 
   // Get task phrase in current language
-  static String getTaskPhrase(int taskId) {
+  static String getTaskPhrase(String taskId) {
     String key = 'task_${taskId}_phrase';
     return get(key);
   }

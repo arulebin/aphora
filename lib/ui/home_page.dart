@@ -1,14 +1,48 @@
 import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/main.dart';
-import 'package:aphora/ui/TherapistPage.dart' show AphasiaTherapistPage, therapistPage;
+import 'package:aphora/ui/TherapistPage.dart'
+    show AphasiaTherapistPage, therapistPage;
 import 'package:aphora/ui/settings_page.dart';
 import 'package:aphora/ui/task_list_page.dart';
 import 'package:flutter/material.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
+  @override
+  _HomePageState createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  @override
+  void initState() {
+    super.initState();
+    // Listen to changes in user profile (e.g. from task completion)
+    Locator.userDatabaseService.currentUser.addListener(_updateUI);
+  }
+
+  @override
+  void dispose() {
+    Locator.userDatabaseService.currentUser.removeListener(_updateUI);
+    super.dispose();
+  }
+
+  void _updateUI() {
+    // If the widget is still mounted, trigger a rebuild to update progress scores
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
+    final user = Locator.userDatabaseService.currentUser.value;
+    final int completedExercisesCount = user?.completedExercises.length ?? 0;
+    // Simple dynamic calculation for demo purposes:
+    final int totalTasks =
+        14; // 6 (Pronunciation) + 5 (Word naming) + 3 (Conversation)
+    final double completionPercent = totalTasks > 0
+        ? (completedExercisesCount / totalTasks) * 100
+        : 0.0;
+    final int sessions = user?.sessionsCompleted ?? 0;
+
     return Scaffold(
       backgroundColor: Color(0xFFF5F7FB),
       appBar: AppBar(
@@ -73,7 +107,10 @@ class HomePage extends StatelessWidget {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => TaskListPage()),
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              TaskListPage(category: "Pronunciation"),
+                        ),
                       );
                     },
                     child: Text("Start Now"),
@@ -94,9 +131,15 @@ class HomePage extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                progressCard("Accuracy", "82%"),
-                progressCard("Fluency", "75%"),
-                progressCard("Sessions", "12"),
+                progressCard(
+                  "Completion",
+                  "${completionPercent.toStringAsFixed(0)}%",
+                ),
+                progressCard(
+                  "Score",
+                  "${user?.progressScore.toStringAsFixed(0) ?? '0'}",
+                ),
+                progressCard("Exercises", "$completedExercisesCount"),
               ],
             ),
 
@@ -115,55 +158,69 @@ class HomePage extends StatelessWidget {
                   exerciseTile(
                     context,
                     "Pronunciation Practice",
+                    "Pronunciation",
                     Icons.record_voice_over,
                   ),
-                  exerciseTile(context, "Word Naming", Icons.text_fields),
-                  exerciseTile(context, "Conversation Mode", Icons.chat),
+                  exerciseTile(
+                    context,
+                    "Word Naming",
+                    "Word Naming",
+                    Icons.text_fields,
+                  ),
+                  exerciseTile(
+                    context,
+                    "Conversation Mode",
+                    "Conversation",
+                    Icons.chat,
+                  ),
                 ],
               ),
             ),
             Text(
-              "Therapist Speach",
+              "Therapist Session",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 10),
-             ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.indigo,
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => therapistPage(),
-                        ),
-                      );
-                    },
-                    child: Text("connect Now"),
-                  ),
-                  Text(
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.indigo,
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => therapistPage()),
+                );
+              },
+              icon: Icon(Icons.video_call),
+              label: Text("Connect Now"),
+            ),
+            SizedBox(height: 20),
+            Text(
               "Settings",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 10),
-             ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.indigo,
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.indigo,
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SettingsPage(
+                      onLanguageChanged: (Language p1) {
+                        LanguageService.setLanguage(p1);
+                      },
                     ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SettingsPage(onLanguageChanged: (Language p1) {
-                            LanguageService.setLanguage(p1);
-                          }),
-                        ),
-                      );
-                    },
-                    child: Text("Icons.settings"),
                   ),
+                );
+              },
+              icon: Icon(Icons.settings),
+              label: Text("Settings"),
+            ),
           ],
         ),
       ),
@@ -193,7 +250,12 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget exerciseTile(BuildContext context, String title, IconData icon) {
+  Widget exerciseTile(
+    BuildContext context,
+    String title,
+    String category,
+    IconData icon,
+  ) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -204,7 +266,9 @@ class HomePage extends StatelessWidget {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => TaskListPage()),
+            MaterialPageRoute(
+              builder: (context) => TaskListPage(category: category),
+            ),
           );
         },
       ),

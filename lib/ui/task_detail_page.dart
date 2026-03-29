@@ -110,11 +110,40 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     );
     String actual = spokenText.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '');
 
-    if (actual.isNotEmpty &&
-        (actual == expected ||
-            actual.contains(expected) ||
-            expected.contains(actual) &&
-                actual.length > expected.length * 0.8)) {
+    if (actual.isEmpty || actual == "tap mic and start speaking") return;
+
+    List<String> expectedWords = expected
+        .split(RegExp(r'\s+'))
+        .where((e) => e.isNotEmpty)
+        .toList();
+    List<String> actualWords = actual
+        .split(RegExp(r'\s+'))
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    int matches = 0;
+    List<String> actualWordsCopy = List.from(actualWords);
+    for (String w in expectedWords) {
+      // Need a more robust check: does it match or is it extremely close?
+      // For now, exact word matching is safer.
+      if (actualWordsCopy.contains(w)) {
+        matches++;
+        actualWordsCopy.remove(w); // Remove to prevent double counting
+      }
+    }
+
+    double accuracy = expectedWords.isEmpty
+        ? 0
+        : matches / expectedWords.length;
+
+    // Calculate the length ratio to catch if someone is just naming 1 word correctly out of 5,
+    // or if they said 20 random words trying to guess.
+    double lengthRatio =
+        actualWords.length / (expectedWords.isEmpty ? 1 : expectedWords.length);
+
+    // If they say a lot of extra garbage strings, or miss essential words, fail them.
+    if ((actual == expected) ||
+        (accuracy >= 0.85 && lengthRatio <= 1.5 && lengthRatio >= 0.5)) {
       // Update backend if user is logged in
       final currentUser = Locator.userDatabaseService.currentUser.value;
       if (currentUser != null) {
@@ -218,6 +247,21 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
             Text(
               spokenText,
               style: TextStyle(fontSize: 18, color: Colors.blue),
+            ),
+            Spacer(),
+            Center(
+              child: TextButton.icon(
+                onPressed: () {
+                  stopListening();
+                  setState(() {
+                    spokenText = "Tap mic and start speaking";
+                    _isNavigating = false;
+                  });
+                },
+                icon: Icon(Icons.refresh),
+                label: Text("Reset"),
+                style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+              ),
             ),
           ],
         ),
