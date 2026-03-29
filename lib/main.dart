@@ -4,6 +4,7 @@ import 'package:aphora/ui/home_page.dart';
 import 'package:aphora/ui/login_page.dart';
 import 'package:aphora/ui/signup_page.dart';
 import 'package:aphora/ui/user_info_page.dart';
+import 'package:aphora/ui/language_selection_page.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -17,7 +18,15 @@ void main() async {
 
 final GoRouter _router = GoRouter(
   routes: [
-    GoRoute(path: '/', builder: (context, state) => LoginPage()),
+    GoRoute(
+      path: '/',
+      builder: (context, state) => LanguageSelectionPage(
+        onLanguageSelected: (language) {
+          context.go('/login');
+        },
+      ),
+    ),
+    GoRoute(path: '/login', builder: (context, state) => LoginPage()),
     GoRoute(path: '/signup', builder: (context, state) => SignUpPage()),
     GoRoute(
       path: '/userinfo',

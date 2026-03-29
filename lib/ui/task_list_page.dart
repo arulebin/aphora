@@ -1,6 +1,7 @@
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/main.dart';
 import 'package:aphora/ui/task_detail_page.dart';
+import 'package:aphora/logic/language_service.dart';
 import 'package:flutter/material.dart';
 
 class TaskListPage extends StatefulWidget {
@@ -10,50 +11,63 @@ class TaskListPage extends StatefulWidget {
 
 class _TaskListPageState extends State<TaskListPage> {
   // Sample tasks data - replace with real data from your backend
-  final List<Map<String, dynamic>> tasks = [
+  final List<Map<String, dynamic>> baseTasks = [
     {
       'id': 1,
-      'phrase': 'Hello, how are you?',
+      'english_phrase': 'Hello, how are you?',
       'difficulty': 'Easy',
       'icon': '👋',
       'completed': false,
     },
     {
       'id': 2,
-      'phrase': 'My name is John',
+      'english_phrase': 'My name is John',
       'difficulty': 'Easy',
       'icon': '👤',
       'completed': false,
     },
     {
       'id': 3,
-      'phrase': 'I would like to order a coffee',
+      'english_phrase': 'I would like to order a coffee',
       'difficulty': 'Medium',
       'icon': '☕',
       'completed': false,
     },
     {
       'id': 4,
-      'phrase': 'Can you help me find the nearest hospital?',
+      'english_phrase': 'Can you help me find the nearest hospital?',
       'difficulty': 'Medium',
       'icon': '🏥',
       'completed': false,
     },
     {
       'id': 5,
-      'phrase': 'I am learning English to improve my career',
+      'english_phrase': 'I am learning English to improve my career',
       'difficulty': 'Hard',
       'icon': '📚',
       'completed': false,
     },
     {
       'id': 6,
-      'phrase': 'Could you please repeat that more slowly?',
+      'english_phrase': 'Could you please repeat that more slowly?',
       'difficulty': 'Hard',
       'icon': '🎧',
       'completed': false,
     },
   ];
+
+  // Get tasks with language-specific phrases
+  List<Map<String, dynamic>> getLocalizedTasks() {
+    return baseTasks.map((task) {
+      return {
+        ...task,
+        'phrase': LanguageService.getTaskPhrase(task['id']),
+        'difficulty_label': LanguageService.getDifficultyInLanguage(
+          task['difficulty'],
+        ),
+      };
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -65,7 +79,7 @@ class _TaskListPageState extends State<TaskListPage> {
     final currentUser = Locator.userDatabaseService.currentUser.value;
     if (currentUser != null) {
       setState(() {
-        for (var task in tasks) {
+        for (var task in baseTasks) {
           if (currentUser.completedExercises.contains(task['id'].toString())) {
             task['completed'] = true;
           }
@@ -76,12 +90,14 @@ class _TaskListPageState extends State<TaskListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final localizedTasks = getLocalizedTasks();
+
     return Scaffold(
       backgroundColor: DuoColors.surface,
       appBar: AppBar(
         automaticallyImplyLeading: true,
         title: Text(
-          "Lesson",
+          LanguageService.get('lesson'),
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -98,11 +114,11 @@ class _TaskListPageState extends State<TaskListPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // 📊 Progress Bar
-              _buildProgressBar(context),
+              _buildProgressBar(context, localizedTasks),
               SizedBox(height: 30),
 
               // 🎯 Tasks List
-              _buildTasksList(context),
+              _buildTasksList(context, localizedTasks),
 
               SizedBox(height: 30),
             ],
@@ -113,7 +129,10 @@ class _TaskListPageState extends State<TaskListPage> {
   }
 
   // Progress Bar Widget
-  Widget _buildProgressBar(BuildContext context) {
+  Widget _buildProgressBar(
+    BuildContext context,
+    List<Map<String, dynamic>> tasks,
+  ) {
     final completedTasks = tasks
         .where((task) => task['completed'] == true)
         .length;
@@ -158,7 +177,10 @@ class _TaskListPageState extends State<TaskListPage> {
   }
 
   // Tasks List Widget
-  Widget _buildTasksList(BuildContext context) {
+  Widget _buildTasksList(
+    BuildContext context,
+    List<Map<String, dynamic>> tasks,
+  ) {
     return ListView.builder(
       shrinkWrap: true,
       physics: NeverScrollableScrollPhysics(),
@@ -202,7 +224,7 @@ class _TaskListPageState extends State<TaskListPage> {
         );
         if (result == true) {
           setState(() {
-            tasks[index]['completed'] = true;
+            baseTasks[index]['completed'] = true;
           });
         }
       },
@@ -262,7 +284,7 @@ class _TaskListPageState extends State<TaskListPage> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        task['difficulty'],
+                        task['difficulty_label'] ?? task['difficulty'],
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
