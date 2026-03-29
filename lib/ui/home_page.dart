@@ -7,6 +7,7 @@ import 'package:aphora/ui/settings_page.dart';
 import 'package:aphora/ui/task_list_page.dart';
 import 'package:aphora/ui/profile_page.dart';
 import 'package:aphora/ui/patient_bookings_page.dart';
+import 'package:aphora/ui/phonetic_test_page.dart';
 import 'package:aphora/ui/videocall_page.dart';
 import 'package:aphora/data/models/booking_model.dart';
 import 'package:aphora/data/models/therapist_model.dart';
@@ -297,6 +298,7 @@ class _HomePageState extends State<HomePage> {
                     "Conversation",
                     Icons.chat,
                   ),
+                  _buildPhoneticSoundTaskTile(context),
                 ],
               ),
               SizedBox(height: 20),
@@ -493,6 +495,24 @@ class _HomePageState extends State<HomePage> {
             MaterialPageRoute(
               builder: (context) => TaskListPage(category: category),
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPhoneticSoundTaskTile(BuildContext context) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: Icon(Icons.mic, color: Colors.indigo),
+        title: Text("Phonetic Sound Test (Tamil)"),
+        trailing: Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const PhoneticTestPage()),
           );
         },
       ),
