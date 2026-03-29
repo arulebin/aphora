@@ -334,7 +334,7 @@ class _UserInfoPageState extends State<UserInfoPage> {
                                 "✅ Signup successful! Navigating to home...",
                               );
                               if (mounted) {
-                                context.pushReplacement('/home');
+                                context.go('/home');
                               }
                             } else {
                               print("❌ Signup returned null");

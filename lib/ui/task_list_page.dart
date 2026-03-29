@@ -26,114 +26,208 @@ class _TaskListPageState extends State<TaskListPage> {
   }
 
   void _initTasks() {
+    final user = Locator.userDatabaseService.currentUser.value;
+    final aphasiaType = user?.aphasiaType.toLowerCase() ?? '';
+
     if (widget.category == "Word Naming") {
-      baseTasks = [
-        {
-          'id': 'word_1',
-          'english_phrase': 'Apple',
-          'difficulty': 'Easy',
-          'icon': '🍎',
-          'completed': false,
-        },
-        {
-          'id': 'word_2',
-          'english_phrase': 'Book',
-          'difficulty': 'Easy',
-          'icon': '📖',
-          'completed': false,
-        },
-        {
-          'id': 'word_3',
-          'english_phrase': 'Computer',
-          'difficulty': 'Medium',
-          'icon': '💻',
-          'completed': false,
-        },
-        {
-          'id': 'word_4',
-          'english_phrase': 'Elephant',
-          'difficulty': 'Hard',
-          'icon': '🐘',
-          'completed': false,
-        },
-        {
-          'id': 'word_5',
-          'english_phrase': 'Flower',
-          'difficulty': 'Easy',
-          'icon': '🌸',
-          'completed': false,
-        },
-      ];
+      if (aphasiaType == 'wernicke') {
+        baseTasks = [
+          {
+            'id': 'word_1',
+            'english_phrase': 'Chair',
+            'difficulty': 'Easy',
+            'icon': '🪑',
+            'completed': false,
+          },
+          {
+            'id': 'word_2',
+            'english_phrase': 'Table',
+            'difficulty': 'Easy',
+            'icon': '🪚',
+            'completed': false,
+          },
+          {
+            'id': 'word_3',
+            'english_phrase': 'Window',
+            'difficulty': 'Medium',
+            'icon': '🪟',
+            'completed': false,
+          },
+          {
+            'id': 'word_4',
+            'english_phrase': 'Computer',
+            'difficulty': 'Hard',
+            'icon': '💻',
+            'completed': false,
+          },
+        ];
+      } else {
+        baseTasks = [
+          {
+            'id': 'word_1',
+            'english_phrase': 'Apple',
+            'difficulty': 'Easy',
+            'icon': '🍎',
+            'completed': false,
+          },
+          {
+            'id': 'word_2',
+            'english_phrase': 'Book',
+            'difficulty': 'Easy',
+            'icon': '📖',
+            'completed': false,
+          },
+          {
+            'id': 'word_3',
+            'english_phrase': 'Computer',
+            'difficulty': 'Medium',
+            'icon': '💻',
+            'completed': false,
+          },
+          {
+            'id': 'word_4',
+            'english_phrase': 'Elephant',
+            'difficulty': 'Hard',
+            'icon': '🐘',
+            'completed': false,
+          },
+          {
+            'id': 'word_5',
+            'english_phrase': 'Flower',
+            'difficulty': 'Easy',
+            'icon': '🌸',
+            'completed': false,
+          },
+        ];
+      }
     } else if (widget.category == "Conversation") {
-      baseTasks = [
-        {
-          'id': 'conv_1',
-          'english_phrase': 'How was your day today?',
-          'difficulty': 'Medium',
-          'icon': '🗣️',
-          'completed': false,
-        },
-        {
-          'id': 'conv_2',
-          'english_phrase': 'Can you tell me about your family?',
-          'difficulty': 'Hard',
-          'icon': '👨‍👩‍👧',
-          'completed': false,
-        },
-        {
-          'id': 'conv_3',
-          'english_phrase': 'What is your favorite food?',
-          'difficulty': 'Easy',
-          'icon': '🍕',
-          'completed': false,
-        },
-      ];
+      if (aphasiaType == 'wernicke') {
+        baseTasks = [
+          {
+            'id': 'conv_1',
+            'english_phrase': 'Are you feeling well?',
+            'difficulty': 'Easy',
+            'icon': '🗣️',
+            'completed': false,
+          },
+          {
+            'id': 'conv_2',
+            'english_phrase': 'Is it raining outside?',
+            'difficulty': 'Medium',
+            'icon': '🌧️',
+            'completed': false,
+          },
+          {
+            'id': 'conv_3',
+            'english_phrase': 'Did you eat breakfast?',
+            'difficulty': 'Easy',
+            'icon': '☕',
+            'completed': false,
+          },
+        ];
+      } else {
+        baseTasks = [
+          {
+            'id': 'conv_1',
+            'english_phrase': 'How was your day today?',
+            'difficulty': 'Medium',
+            'icon': '🗣️',
+            'completed': false,
+          },
+          {
+            'id': 'conv_2',
+            'english_phrase': 'Can you tell me about your family?',
+            'difficulty': 'Hard',
+            'icon': '👨‍👩‍👧',
+            'completed': false,
+          },
+          {
+            'id': 'conv_3',
+            'english_phrase': 'What is your favorite food?',
+            'difficulty': 'Easy',
+            'icon': '🍕',
+            'completed': false,
+          },
+        ];
+      }
     } else {
-      // Default / Pronunciation Practice
-      baseTasks = [
-        {
-          'id': 'pron_1',
-          'english_phrase': 'Hello, how are you?',
-          'difficulty': 'Easy',
-          'icon': '👋',
-          'completed': false,
-        },
-        {
-          'id': 'pron_2',
-          'english_phrase': 'My name is John',
-          'difficulty': 'Easy',
-          'icon': '👤',
-          'completed': false,
-        },
-        {
-          'id': 'pron_3',
-          'english_phrase': 'I would like to order a coffee',
-          'difficulty': 'Medium',
-          'icon': '☕',
-          'completed': false,
-        },
-        {
-          'id': 'pron_4',
-          'english_phrase': 'Can you help me find the nearest hospital?',
-          'difficulty': 'Medium',
-          'icon': '🏥',
-          'completed': false,
-        },
-        {
-          'id': 'pron_5',
-          'english_phrase': 'I am learning English to improve my career',
-          'difficulty': 'Hard',
-          'icon': '📚',
-          'completed': false,
-        },
-        {
-          'id': 'pron_6',
-          'english_phrase': 'Could you please repeat that more slowly?',
-          'difficulty': 'Hard',
-          'icon': '🎧',
-          'completed': false,
-        },
-      ];
+      if (aphasiaType == 'broca') {
+        baseTasks = [
+          {
+            'id': 'pron_1',
+            'english_phrase': 'Hello',
+            'difficulty': 'Easy',
+            'icon': '👋',
+            'completed': false,
+          },
+          {
+            'id': 'pron_2',
+            'english_phrase': 'Thank you',
+            'difficulty': 'Easy',
+            'icon': '🙏',
+            'completed': false,
+          },
+          {
+            'id': 'pron_3',
+            'english_phrase': 'I want water',
+            'difficulty': 'Medium',
+            'icon': '💧',
+            'completed': false,
+          },
+          {
+            'id': 'pron_4',
+            'english_phrase': 'Help please',
+            'difficulty': 'Medium',
+            'icon': '🆘',
+            'completed': false,
+          },
+        ];
+      } else {
+        baseTasks = [
+          {
+            'id': 'pron_1',
+            'english_phrase': 'Hello, how are you?',
+            'difficulty': 'Easy',
+            'icon': '👋',
+            'completed': false,
+          },
+          {
+            'id': 'pron_2',
+            'english_phrase': 'My name is John',
+            'difficulty': 'Easy',
+            'icon': '👤',
+            'completed': false,
+          },
+          {
+            'id': 'pron_3',
+            'english_phrase': 'I would like to order a coffee',
+            'difficulty': 'Medium',
+            'icon': '☕',
+            'completed': false,
+          },
+          {
+            'id': 'pron_4',
+            'english_phrase': 'Can you help me find the nearest hospital?',
+            'difficulty': 'Medium',
+            'icon': '🏥',
+            'completed': false,
+          },
+          {
+            'id': 'pron_5',
+            'english_phrase': 'I am learning English to improve my career',
+            'difficulty': 'Hard',
+            'icon': '📚',
+            'completed': false,
+          },
+          {
+            'id': 'pron_6',
+            'english_phrase': 'Could you please repeat that more slowly?',
+            'difficulty': 'Hard',
+            'icon': '🎧',
+            'completed': false,
+          },
+        ];
+      }
     }
   }
 

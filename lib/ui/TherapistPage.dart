@@ -1,198 +1,194 @@
-import 'package:aphora/ui/videocall_page.dart';
+import 'package:aphora/logic/locator.dart';
+import 'package:aphora/main.dart';
+import 'package:aphora/ui/TherapistDashboardPage.dart';
+import 'package:aphora/ui/login_page.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
-class therapistPage extends StatelessWidget {
-  const therapistPage({super.key});
+class TherapistPage extends StatefulWidget {
+  const TherapistPage({super.key});
+
+  @override
+  State<TherapistPage> createState() => _TherapistPageState();
+}
+
+class _TherapistPageState extends State<TherapistPage> {
+  final nameController = TextEditingController();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Aphasia Therapist Connect"),
-        centerTitle: true,
-        backgroundColor: Colors.teal,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-
-            // Therapist Profile Card
-            Card(
-              elevation: 5,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    const CircleAvatar(
-                      radius: 35,
-                      backgroundImage:
-                          AssetImage('assets/therapist.jpg'),
-                    ),
-                    const SizedBox(width: 15),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text("Dr. Meera Nair",
-                            style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold)),
-                        SizedBox(height: 5),
-                        Text("Speech & Aphasia Specialist"),
-                        Text("Experience: 8+ years"),
-                      ],
-                    )
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // Action Buttons
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-
-                _buildFeatureCard(
-                  context,
-                  icon: Icons.video_call,
-                  title: "Start Video Call",
-                  color: Colors.blue,
-                  onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const VideoCallPage(
-        channelName: "testChannel",
-      ),
-    ),
-  );
-},
-                ),
-
-                _buildFeatureCard(
-                  context,
-                  icon: Icons.chat,
-                  title: "Chat",
-                  color: Colors.green,
-                  onTap: () {
-                    // Add chat logic
-                  },
-                ),
-
-                _buildFeatureCard(
-                  context,
-                  icon: Icons.calendar_month,
-                  title: "Book Session",
-                  color: Colors.orange,
-                  onTap: () {
-                    // Booking logic
-                  },
-                ),
-
-                _buildFeatureCard(
-                  context,
-                  icon: Icons.mic,
-                  title: "Upload Speech",
-                  color: Colors.purple,
-                  onTap: () {
-                    // Upload audio logic
-                  },
-                ),
-
-                _buildFeatureCard(
-                  context,
-                  icon: Icons.analytics,
-                  title: "Progress Report",
-                  color: Colors.teal,
-                  onTap: () {
-                    // Show reports
-                  },
-                ),
-
-                _buildFeatureCard(
-                  context,
-                  icon: Icons.warning,
-                  title: "Emergency Help",
-                  color: Colors.red,
-                  onTap: () {
-                    // Emergency contact
-                  },
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 25),
-
-            // Tips Section
-            const Text(
-              "Daily Tips",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: const [
-                    ListTile(
-                      leading: Icon(Icons.check_circle, color: Colors.teal),
-                      title: Text("Practice simple words daily"),
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.check_circle, color: Colors.teal),
-                      title: Text("Use visual cues while speaking"),
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.check_circle, color: Colors.teal),
-                      title: Text("Repeat words slowly and clearly"),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFeatureCard(BuildContext context,
-      {required IconData icon,
-      required String title,
-      required Color color,
-      required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Card(
-        elevation: 4,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(15),
-            gradient: LinearGradient(
-              colors: [color.withOpacity(0.7), color],
-            ),
-          ),
+      backgroundColor: DuoColors.surface,
+      body: SafeArea(
+        child: SingleChildScrollView(
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 35, color: Colors.white),
-              const SizedBox(height: 10),
-              Text(title,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold)),
+              // Purple hero section for Therapist
+              Container(
+                width: double.infinity,
+                color: Colors.purple,
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 16),
+                    Text(
+                      'Therapist Portal',
+                      style: DuoTextStyles.display.copyWith(
+                        color: Colors.white,
+                        fontSize: 36,
+                        shadows: [
+                          const Shadow(
+                            color: Colors.purple,
+                            offset: Offset(0, 3),
+                            blurRadius: 0,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Manage your patients seamlessly.',
+                      style: DuoTextStyles.label.copyWith(
+                        color: Colors.white70,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Form section
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Welcome Therapist!', style: DuoTextStyles.heading),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Log in or sign up to view patient progress.',
+                        style: DuoTextStyles.label,
+                      ),
+                      const SizedBox(height: 24),
+                      DuoTextField(
+                        controller: nameController,
+                        label: 'Name (for new signups)',
+                        prefixIcon: Icons.person_outline,
+                      ),
+                      DuoTextField(
+                        controller: emailController,
+                        label: 'Phone number',
+                        prefixIcon: Icons.phone_outlined,
+                        keyboardType: TextInputType.phone,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter your phone number';
+                          }
+                          if (value.trim().length < 10) {
+                            return 'Enter a valid phone number';
+                          }
+                          return null;
+                        },
+                      ),
+                      DuoTextField(
+                        controller: passwordController,
+                        label: 'Password',
+                        prefixIcon: Icons.lock_outline,
+                        obscureText: true,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your password';
+                          }
+                          if (value.length < 6) {
+                            return 'Password must be at least 6 characters';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      DuoButton(
+                        label: 'THERAPIST LOGIN',
+                        color: Colors.purple,
+                        shadowColor: Colors.purple.shade700,
+                        onPressed: () async {
+                          if (!_formKey.currentState!.validate()) return;
+
+                          final phone = emailController.text.trim();
+                          final password = passwordController.text;
+                          final name = nameController.text.trim();
+
+                          if (phone.isEmpty || password.isEmpty) return;
+
+                          try {
+                            final user = await Locator.userDatabaseService
+                                .loginTherapist(
+                                  phone: phone,
+                                  password: password,
+                                  name: name.isNotEmpty ? name : null,
+                                );
+
+                            if (user != null) {
+                              if (context.mounted) {
+                                context.go('/therapist_dashboard');
+                              }
+                            } else {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Invalid credentials. Please try again.',
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(e.toString())),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            "Are you a patient?",
+                            style: DuoTextStyles.label.copyWith(
+                              color: DuoColors.text,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              context.go('/login');
+                            },
+                            child: const Text(
+                              'Patient Login here',
+                              style: TextStyle(color: DuoColors.blue),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),

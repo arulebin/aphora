@@ -7,6 +7,8 @@ import 'package:aphora/ui/user_info_page.dart';
 import 'package:aphora/ui/language_selection_page.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:aphora/ui/TherapistPage.dart';
+import 'package:aphora/ui/TherapistDashboardPage.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 void main() async {
@@ -39,6 +41,14 @@ final GoRouter _router = GoRouter(
       },
     ),
     GoRoute(path: '/home', builder: (context, state) => HomePage()),
+    GoRoute(
+      path: '/therapist',
+      builder: (context, state) => const TherapistPage(),
+    ),
+    GoRoute(
+      path: '/therapist_dashboard',
+      builder: (context, state) => const TherapistDashboardPage(),
+    ),
   ],
 );
 

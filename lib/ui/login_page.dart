@@ -1,5 +1,6 @@
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/main.dart';
+import 'package:aphora/ui/TherapistPage.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -142,7 +143,7 @@ class _LoginPageState extends State<LoginPage> {
 
                             if (user != null) {
                               if (context.mounted) {
-                                context.push('/home');
+                                context.go('/home');
                               }
                             } else {
                               if (context.mounted) {
@@ -167,11 +168,32 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 12),
                       DuoButton(
                         label: "DON'T HAVE AN ACCOUNT? SIGN UP",
-                        onPressed: () => context.push('/signup'),
+                        onPressed: () => context.go('/signup'),
                         color: Colors.white,
                         shadowColor: DuoColors.border,
                         textColor: DuoColors.text,
                         outlined: true,
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            "Are you a therapist?",
+                            style: DuoTextStyles.label.copyWith(
+                              color: DuoColors.text,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              context.go('/therapist');
+                            },
+                            child: const Text(
+                              'Login here',
+                              style: TextStyle(color: DuoColors.blue),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 24),
                       // const SizedBox(height: 16),

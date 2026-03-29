@@ -1,4 +1,5 @@
 import 'package:aphora/data/models/usermodel.dart';
+import 'package:aphora/data/models/therapist_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -7,12 +8,18 @@ class UserDatabaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   ValueNotifier<UserModel?> currentUser = ValueNotifier(null);
+  ValueNotifier<TherapistModel?> currentTherapist = ValueNotifier(null);
 
   final String userCollection = "users";
+  final String therapistCollection = "therapists";
 
   /// Convert phone → email
   String _phoneToEmail(String phone) {
     return "$phone@aphora.com";
+  }
+
+  String _therapistEmail(String phone) {
+    return "$phone@aphorat.com";
   }
 
   /// =========================
@@ -164,6 +171,8 @@ class UserDatabaseService {
   /// =========================
   Future<void> logout() async {
     await _auth.signOut();
+    currentUser.value = null;
+    currentTherapist.value = null;
   }
 
   /// =========================
@@ -175,5 +184,114 @@ class UserDatabaseService {
 
     await _db.collection(userCollection).doc(user.uid).delete();
     await user.delete();
+  }
+
+  /// =========================
+  /// 👨‍⚕️ THERAPIST LOGIN
+  /// =========================
+  Future<TherapistModel?> loginTherapist({
+    required String phone,
+    required String password,
+    String? name,
+  }) async {
+    try {
+      final email = _therapistEmail(phone);
+      final cred = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      final firebaseUser = cred.user;
+      if (firebaseUser == null) return null;
+
+      final doc = await _db
+          .collection(therapistCollection)
+          .doc(firebaseUser.uid)
+          .get();
+
+      if (!doc.exists) {
+        // Automatically create a document if logging in for the time with a dummy password
+        // In a real app we would have a signup for Therapist.
+        final newTherapist = TherapistModel(
+          id: firebaseUser.uid,
+          name: name ?? "Dr. Therapist",
+          phone: phone,
+          code: firebaseUser.uid
+              .substring(0, 6)
+              .toUpperCase(), // Generate random code
+        );
+        await _db
+            .collection(therapistCollection)
+            .doc(firebaseUser.uid)
+            .set(newTherapist.toMap());
+        currentTherapist.value = newTherapist;
+        return newTherapist;
+      }
+
+      final therapist = TherapistModel.fromMap(doc.data()!, doc.id);
+      currentTherapist.value = therapist;
+      return therapist;
+    } catch (e) {
+      print("Therapist Login Error: $e");
+
+      // If it's an invalid-credential error, it usually means the user doesn't exist yet
+      if (e is FirebaseAuthException &&
+          (e.code == 'invalid-credential' || e.code == 'user-not-found')) {
+        print("Auto-creating therapist account...");
+        try {
+          final email = _therapistEmail(phone);
+          final cred = await _auth.createUserWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+          final firebaseUser = cred.user;
+          if (firebaseUser != null) {
+            final newTherapist = TherapistModel(
+              id: firebaseUser.uid,
+              name: name ?? "Dr. Therapist",
+              phone: phone,
+              code: firebaseUser.uid.substring(0, 6).toUpperCase(),
+            );
+            await _db
+                .collection(therapistCollection)
+                .doc(firebaseUser.uid)
+                .set(newTherapist.toMap());
+            currentTherapist.value = newTherapist;
+            return newTherapist;
+          }
+        } catch (e2) {
+          print("Failed Auto-creating therapist: $e2");
+        }
+      }
+      return null;
+    }
+  }
+
+  Future<List<UserModel>> getTherapistPatients(String code) async {
+    final snapshot = await _db
+        .collection(userCollection)
+        .where('linkedCaregiverId', isEqualTo: code)
+        .get();
+    return snapshot.docs.map((doc) => UserModel.fromMap(doc.data())).toList();
+  }
+
+  Future<TherapistModel?> getTherapistByCode(String code) async {
+    try {
+      final snapshot = await _db
+          .collection(therapistCollection)
+          .where('code', isEqualTo: code)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isNotEmpty) {
+        return TherapistModel.fromMap(
+          snapshot.docs.first.data(),
+          snapshot.docs.first.id,
+        );
+      }
+      return null;
+    } catch (e) {
+      print("Error getting therapist by code: $e");
+      return null;
+    }
   }
 }

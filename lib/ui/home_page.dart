@@ -2,9 +2,12 @@ import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/main.dart';
 import 'package:aphora/ui/TherapistPage.dart'
-    show AphasiaTherapistPage, therapistPage;
+    show AphasiaTherapistPage, therapistPage, TherapistPage;
 import 'package:aphora/ui/settings_page.dart';
 import 'package:aphora/ui/task_list_page.dart';
+import 'package:aphora/ui/profile_page.dart';
+import 'package:aphora/ui/videocall_page.dart';
+import 'package:aphora/data/models/therapist_model.dart';
 import 'package:flutter/material.dart';
 
 class HomePage extends StatefulWidget {
@@ -13,11 +16,29 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  TherapistModel? _linkedTherapist;
+
   @override
   void initState() {
     super.initState();
-    // Listen to changes in user profile (e.g. from task completion)
     Locator.userDatabaseService.currentUser.addListener(_updateUI);
+    _fetchTherapist();
+  }
+
+  void _fetchTherapist() async {
+    final user = Locator.userDatabaseService.currentUser.value;
+    if (user != null &&
+        user.linkedCaregiverId != null &&
+        user.linkedCaregiverId!.isNotEmpty) {
+      final therapist = await Locator.userDatabaseService.getTherapistByCode(
+        user.linkedCaregiverId!,
+      );
+      if (mounted) {
+        setState(() {
+          _linkedTherapist = therapist;
+        });
+      }
+    }
   }
 
   @override
@@ -29,6 +50,7 @@ class _HomePageState extends State<HomePage> {
   void _updateUI() {
     // If the widget is still mounted, trigger a rebuild to update progress scores
     if (mounted) setState(() {});
+    _fetchTherapist();
   }
 
   @override
@@ -53,6 +75,17 @@ class _HomePageState extends State<HomePage> {
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.person, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ProfilePage()),
+              );
+            },
+          ),
+        ],
         elevation: 0,
         backgroundColor: DuoColors.green,
       ),
@@ -181,20 +214,117 @@ class _HomePageState extends State<HomePage> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 10),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.indigo,
+            if (user?.linkedCaregiverId == null ||
+                user!.linkedCaregiverId!.isEmpty)
+              Card(
+                color: Colors.orange[50],
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      Text(
+                        "You don't have a linked therapist.",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 10),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ProfilePage(),
+                            ),
+                          );
+                        },
+                        child: Text("Link a Therapist"),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: DuoColors.greenLight,
+                            child: Icon(
+                              Icons.medical_services,
+                              color: DuoColors.green,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _linkedTherapist?.name ?? "Your Therapist",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              Text(
+                                "ID: ${user.linkedCaregiverId}",
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildTherapistAction(
+                            Icons.video_call,
+                            "Video Call",
+                            () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const VideoCallPage(
+                                    channelName: "demo_channel",
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          _buildTherapistAction(Icons.chat, "Chat", () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text("Chat feature coming soon!"),
+                              ),
+                            );
+                          }),
+                          _buildTherapistAction(
+                            Icons.calendar_month,
+                            "Book Session",
+                            () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text("Booking feature coming soon!"),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => therapistPage()),
-                );
-              },
-              icon: Icon(Icons.video_call),
-              label: Text("Connect Now"),
-            ),
             SizedBox(height: 20),
             Text(
               "Settings",
@@ -223,6 +353,26 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTherapistAction(
+    IconData icon,
+    String label,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        children: [
+          CircleAvatar(
+            backgroundColor: Colors.blue.withOpacity(0.1),
+            child: Icon(icon, color: Colors.blue),
+          ),
+          SizedBox(height: 8),
+          Text(label, style: TextStyle(fontSize: 12)),
+        ],
       ),
     );
   }

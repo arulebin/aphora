@@ -5,6 +5,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:aphora/logic/language_service.dart';
 import 'dart:io' show Platform;
 import 'dart:js' as js;
+import 'dart:math' as math;
 
 class TaskDetailPage extends StatefulWidget {
   final Map<String, dynamic> task;
@@ -103,6 +104,28 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     }
   }
 
+  int _levenshteinDistance(String s1, String s2) {
+    if (s1 == s2) return 0;
+    if (s1.isEmpty) return s2.length;
+    if (s2.isEmpty) return s1.length;
+
+    int v0Len = s2.length + 1;
+    List<int> v0 = List<int>.filled(v0Len, 0);
+    List<int> v1 = List<int>.filled(v0Len, 0);
+
+    for (int i = 0; i < v0Len; i++) v0[i] = i;
+
+    for (int i = 0; i < s1.length; i++) {
+      v1[0] = i + 1;
+      for (int j = 0; j < s2.length; j++) {
+        int cost = (s1[i] == s2[j]) ? 0 : 1;
+        v1[j + 1] = math.min(v1[j] + 1, math.min(v0[j + 1] + 1, v0[j] + cost));
+      }
+      for (int j = 0; j < v0Len; j++) v0[j] = v1[j];
+    }
+    return v1[s2.length];
+  }
+
   void _checkCompletion() {
     String expected = widget.task['phrase'].toString().toLowerCase().replaceAll(
       RegExp(r'[^\w\s]'),
@@ -124,11 +147,26 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     int matches = 0;
     List<String> actualWordsCopy = List.from(actualWords);
     for (String w in expectedWords) {
-      // Need a more robust check: does it match or is it extremely close?
-      // For now, exact word matching is safer.
-      if (actualWordsCopy.contains(w)) {
+      String? bestMatch;
+      int lowestDist = 999;
+
+      for (String a in actualWordsCopy) {
+        int dist = _levenshteinDistance(w, a);
+        if (dist < lowestDist) {
+          lowestDist = dist;
+          bestMatch = a;
+        }
+      }
+
+      // Tolerance rules for matching to account for Aphasia speech quirks / accents.
+      int threshold = (w.length <= 4) ? 1 : 2;
+
+      if (bestMatch != null &&
+          (lowestDist <= threshold ||
+              bestMatch.contains(w) ||
+              w.contains(bestMatch))) {
         matches++;
-        actualWordsCopy.remove(w); // Remove to prevent double counting
+        actualWordsCopy.remove(bestMatch);
       }
     }
 
@@ -136,14 +174,13 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         ? 0
         : matches / expectedWords.length;
 
-    // Calculate the length ratio to catch if someone is just naming 1 word correctly out of 5,
-    // or if they said 20 random words trying to guess.
+    // Calculate the length ratio to catch guessing.
     double lengthRatio =
         actualWords.length / (expectedWords.isEmpty ? 1 : expectedWords.length);
 
-    // If they say a lot of extra garbage strings, or miss essential words, fail them.
+    // Be more forgiving: 70% accuracy, and allow 50% fewer to 2x more words (to account for speech restarting or stuttering).
     if ((actual == expected) ||
-        (accuracy >= 0.85 && lengthRatio <= 1.5 && lengthRatio >= 0.5)) {
+        (accuracy >= 0.70 && lengthRatio <= 2.5 && lengthRatio >= 0.4)) {
       // Update backend if user is logged in
       final currentUser = Locator.userDatabaseService.currentUser.value;
       if (currentUser != null) {

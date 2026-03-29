@@ -30,7 +30,13 @@ class _SignUpPageState extends State<SignUpPage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close, color: DuoColors.textLight, size: 28),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/login');
+            }
+          },
         ),
       ),
       body: SafeArea(
@@ -121,7 +127,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   onPressed: () {
                     if (!_formKey.currentState!.validate()) return;
 
-                    context.push(
+                    context.go(
                       '/userinfo',
                       extra: {
                         'phone': emailController.text.trim(),
@@ -132,7 +138,13 @@ class _SignUpPageState extends State<SignUpPage> {
                 ),
                 const SizedBox(height: 12),
                 TextButton(
-                  onPressed: () => context.pop(),
+                  onPressed: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/login');
+                    }
+                  },
                   child: Text(
                     'Already have an account? Log In',
                     style: DuoTextStyles.label.copyWith(
