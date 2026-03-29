@@ -11,9 +11,7 @@ import 'package:firebase_core/firebase_core.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   Locator.setUpServices();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(MyApp());
 }
 
@@ -177,6 +175,8 @@ class DuoTextField extends StatelessWidget {
   final bool obscureText;
   final TextInputType keyboardType;
   final IconData? prefixIcon;
+  final String? Function(String?)? validator;
+  final void Function(String)? onChanged;
 
   const DuoTextField({
     Key? key,
@@ -185,6 +185,8 @@ class DuoTextField extends StatelessWidget {
     this.obscureText = false,
     this.keyboardType = TextInputType.text,
     this.prefixIcon,
+    this.validator,
+    this.onChanged,
   }) : super(key: key);
 
   @override
@@ -203,11 +205,13 @@ class DuoTextField extends StatelessWidget {
           ),
         ],
       ),
-      child: TextField(
+      child: TextFormField(
         controller: controller,
         obscureText: obscureText,
         keyboardType: keyboardType,
         style: DuoTextStyles.body,
+        validator: validator,
+        onChanged: onChanged,
         decoration: InputDecoration(
           labelText: label,
           labelStyle: DuoTextStyles.label,

@@ -15,8 +15,8 @@ class UserModel {
 
   // Progress tracking
   final int sessionsCompleted;
-  final double progressScore; // AI-generated score
-  final List<String> completedExercises;
+  double progressScore; // AI-generated score
+  List<String> completedExercises;
   // Caregiver/Therapist linkage
   final String? linkedCaregiverId;
   // Metadata

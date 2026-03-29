@@ -1,10 +1,12 @@
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class UserDatabaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  ValueNotifier<UserModel?> currentUser = ValueNotifier(null);
 
   final String userCollection = "users";
 
@@ -82,7 +84,7 @@ class UserDatabaseService {
           .collection(userCollection)
           .doc(firebaseUser.uid)
           .set(newUser.toMap());
-
+      currentUser.value = newUser;
       print("✅ User successfully created and saved!");
       return newUser;
     } on FirebaseAuthException catch (e) {
@@ -123,6 +125,7 @@ class UserDatabaseService {
         throw Exception("User exists in Auth but not in DB");
       }
 
+      currentUser.value = UserModel.fromMap(doc.data()!);
       return UserModel.fromMap(doc.data()!);
     } catch (e) {
       print("Login Error: $e");
