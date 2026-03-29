@@ -1,3 +1,4 @@
+import 'package:aphora/logic/locator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -16,6 +17,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
   late stt.SpeechToText speech;
 
   bool isListening = false;
+  bool _isNavigating = false;
   String spokenText = "Tap mic and start speaking";
 
   @override
@@ -28,7 +30,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
 
   // 🔊 Initialize TTS
   void initTTS() async {
-    await flutterTts.setLanguage("en-US");  
+    await flutterTts.setLanguage("en-US");
     await flutterTts.setSpeechRate(0.4);
     await flutterTts.setPitch(1.0);
   }
@@ -43,22 +45,73 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     bool available = await speech.initialize();
 
     if (available) {
-      setState(() => isListening = true);
+      if (mounted) {
+        setState(() => isListening = true);
+      }
 
       speech.listen(
         onResult: (result) {
-          setState(() {
-            spokenText = result.recognizedWords;
-          });
+          if (mounted) {
+            setState(() {
+              spokenText = result.recognizedWords;
+            });
+            _checkCompletion();
+          }
         },
       );
+    }
+  }
+
+  void _checkCompletion() {
+    String expected = widget.task['phrase'].toString().toLowerCase().replaceAll(
+      RegExp(r'[^\w\s]'),
+      '',
+    );
+    String actual = spokenText.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '');
+
+    if (actual.isNotEmpty &&
+        (actual == expected ||
+            actual.contains(expected) ||
+            expected.contains(actual) &&
+                actual.length > expected.length * 0.8)) {
+      // Update backend if user is logged in
+      final currentUser = Locator.userDatabaseService.currentUser.value;
+      if (currentUser != null) {
+        final taskId = widget.task['id'].toString();
+        if (!currentUser.completedExercises.contains(taskId)) {
+          currentUser.completedExercises.add(taskId);
+          currentUser.progressScore += 10; // add some progress
+          Locator.userDatabaseService.updateUser(currentUser);
+        }
+      }
+
+      // Mark as completed
+      if (!_isNavigating) {
+        _isNavigating = true;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Great job! Task completed.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Add a slight delay so user can see their success
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            Navigator.pop(context, true);
+          }
+        });
+      }
     }
   }
 
   // 🛑 Stop Listening
   void stopListening() {
     speech.stop();
-    setState(() => isListening = false);
+    if (mounted) {
+      setState(() => isListening = false);
+    }
   }
 
   @override
@@ -73,9 +126,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     final task = widget.task;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Task Detail"),
-      ),
+      appBar: AppBar(title: Text("Task Detail")),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -106,8 +157,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                 },
                 child: CircleAvatar(
                   radius: 40,
-                  backgroundColor:
-                      isListening ? Colors.red : Colors.green,
+                  backgroundColor: isListening ? Colors.red : Colors.green,
                   child: Icon(
                     isListening ? Icons.mic : Icons.mic_none,
                     size: 40,
@@ -120,10 +170,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
             SizedBox(height: 30),
 
             // 📝 Spoken Text Output
-            Text(
-              "You said:",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            Text("You said:", style: TextStyle(fontWeight: FontWeight.bold)),
             SizedBox(height: 10),
             Text(
               spokenText,

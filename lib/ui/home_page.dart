@@ -1,5 +1,7 @@
+import 'package:aphora/logic/locator.dart';
 import 'package:aphora/main.dart';
-import 'package:aphora/ui/TherapistPage.dart' show AphasiaTherapistPage, therapistPage;
+import 'package:aphora/ui/TherapistPage.dart'
+    show AphasiaTherapistPage, therapistPage;
 import 'package:aphora/ui/task_list_page.dart';
 import 'package:flutter/material.dart';
 
@@ -9,10 +11,15 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       backgroundColor: Color(0xFFF5F7FB),
       appBar: AppBar(
-      automaticallyImplyLeading: false,
-      title: Center(child: Text("APHORA",style: TextStyle(color: Colors.white,fontWeight: FontWeight.bold),)),
-      elevation: 0,
-      backgroundColor: DuoColors.green,
+        automaticallyImplyLeading: false,
+        title: Center(
+          child: Text(
+            "APHORA",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        ),
+        elevation: 0,
+        backgroundColor: DuoColors.green,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -21,7 +28,7 @@ class HomePage extends StatelessWidget {
           children: [
             // 👋 Welcome Section
             Text(
-              "Hello, User 👋",
+              "Hello, ${Locator.userDatabaseService.currentUser.value?.name ?? 'User'}👋",
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 5),
@@ -65,9 +72,7 @@ class HomePage extends StatelessWidget {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => TaskListPage(),
-                        ),
+                        MaterialPageRoute(builder: (context) => TaskListPage()),
                       );
                     },
                     child: Text("Start Now"),
@@ -116,26 +121,24 @@ class HomePage extends StatelessWidget {
                 ],
               ),
             ),
-             Text(
+            Text(
               "Therapist Speach",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 10),
-             ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.indigo,
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => therapistPage(),
-                        ),
-                      );
-                    },
-                    child: Text("Start Now"),
-                  ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.indigo,
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => therapistPage()),
+                );
+              },
+              child: Text("Start Now"),
+            ),
           ],
         ),
       ),
@@ -176,9 +179,7 @@ class HomePage extends StatelessWidget {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => TaskListPage(),
-            ),
+            MaterialPageRoute(builder: (context) => TaskListPage()),
           );
         },
       ),

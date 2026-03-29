@@ -1,8 +1,14 @@
+import 'package:aphora/logic/locator.dart';
 import 'package:aphora/main.dart';
 import 'package:aphora/ui/task_detail_page.dart';
 import 'package:flutter/material.dart';
 
-class TaskListPage extends StatelessWidget {
+class TaskListPage extends StatefulWidget {
+  @override
+  _TaskListPageState createState() => _TaskListPageState();
+}
+
+class _TaskListPageState extends State<TaskListPage> {
   // Sample tasks data - replace with real data from your backend
   final List<Map<String, dynamic>> tasks = [
     {
@@ -50,6 +56,25 @@ class TaskListPage extends StatelessWidget {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadProgress();
+  }
+
+  void _loadProgress() {
+    final currentUser = Locator.userDatabaseService.currentUser.value;
+    if (currentUser != null) {
+      setState(() {
+        for (var task in tasks) {
+          if (currentUser.completedExercises.contains(task['id'].toString())) {
+            task['completed'] = true;
+          }
+        }
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: DuoColors.surface,
@@ -89,7 +114,9 @@ class TaskListPage extends StatelessWidget {
 
   // Progress Bar Widget
   Widget _buildProgressBar(BuildContext context) {
-    final completedTasks = tasks.where((task) => task['completed'] == true).length;
+    final completedTasks = tasks
+        .where((task) => task['completed'] == true)
+        .length;
     final progress = completedTasks / tasks.length;
 
     return Column(
@@ -147,7 +174,11 @@ class TaskListPage extends StatelessWidget {
   }
 
   // Individual Task Card
-  Widget _buildTaskCard(BuildContext context, Map<String, dynamic> task, int index) {
+  Widget _buildTaskCard(
+    BuildContext context,
+    Map<String, dynamic> task,
+    int index,
+  ) {
     Color difficultyColor;
     switch (task['difficulty']) {
       case 'Easy':
@@ -164,13 +195,16 @@ class TaskListPage extends StatelessWidget {
     }
 
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        final result = await Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => TaskDetailPage(task: task),
-          ),
+          MaterialPageRoute(builder: (context) => TaskDetailPage(task: task)),
         );
+        if (result == true) {
+          setState(() {
+            tasks[index]['completed'] = true;
+          });
+        }
       },
       child: Container(
         decoration: BoxDecoration(
@@ -197,10 +231,7 @@ class TaskListPage extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: Center(
-                  child: Text(
-                    task['icon'],
-                    style: TextStyle(fontSize: 32),
-                  ),
+                  child: Text(task['icon'], style: TextStyle(fontSize: 32)),
                 ),
               ),
               SizedBox(width: 16),
@@ -222,7 +253,10 @@ class TaskListPage extends StatelessWidget {
                     ),
                     SizedBox(height: 6),
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: difficultyColor.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(8),
@@ -249,18 +283,10 @@ class TaskListPage extends StatelessWidget {
                     color: DuoColors.green,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    Icons.check,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+                  child: Icon(Icons.check, color: Colors.white, size: 24),
                 )
               else
-                Icon(
-                  Icons.arrow_forward_ios,
-                  color: Colors.grey,
-                  size: 20,
-                ),
+                Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 20),
             ],
           ),
         ),
