@@ -8,7 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 
 class PhoneticTestPage extends StatefulWidget {
-  const PhoneticTestPage({Key? key}) : super(key: key);
+  const PhoneticTestPage({super.key});
 
   @override
   State<PhoneticTestPage> createState() => _PhoneticTestPageState();
@@ -98,11 +98,11 @@ class PhoneticTaskDetailPage extends StatefulWidget {
   final String assetPath;
 
   const PhoneticTaskDetailPage({
-    Key? key,
+    super.key,
     required this.title,
     required this.subtitle,
     required this.assetPath,
-  }) : super(key: key);
+  });
 
   @override
   State<PhoneticTaskDetailPage> createState() => _PhoneticTaskDetailPageState();

@@ -1,101 +1,119 @@
 import 'package:aphora/firebase_options.dart';
 import 'package:aphora/logic/locator.dart';
-import 'package:aphora/ui/user/Login&signup/login_page.dart';
-import 'package:aphora/ui/user/Login&signup/signup_page.dart';
-import 'package:aphora/ui/user_info_page.dart';
-import 'package:aphora/ui/language_selection_page.dart';
-import 'package:aphora/ui/main_navigation.dart';
-import 'package:aphora/ui/user/preassesment_test/pre_assessment_test_page.dart';
-import 'package:aphora/ui/session_selection_page.dart';
-import 'package:aphora/ui/learning_session_page.dart';
+import 'package:aphora/ui/assessment/pre_assessment_test_page.dart';
+import 'package:aphora/ui/auth/language_selection_page.dart';
+import 'package:aphora/ui/auth/login_page.dart';
+import 'package:aphora/ui/auth/signup_page.dart';
+import 'package:aphora/ui/auth/user_info_page.dart';
+import 'package:aphora/ui/home/main_navigation.dart';
+import 'package:aphora/ui/learning/learning_session_page.dart';
+import 'package:aphora/ui/learning/session_selection_page.dart';
+import 'package:aphora/ui/therapist/TherapistDashboardPage.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:aphora/ui/TherapistDashboardPage.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   Locator.setUpServices();
-  runApp(MyApp());
+
+  final sessionRestored = await Locator.userDatabaseService.restoreSession();
+  String initialLocation = '/';
+  if (sessionRestored) {
+    if (Locator.userDatabaseService.currentUser.value != null) {
+      initialLocation = '/home';
+    } else if (Locator.userDatabaseService.currentTherapist.value != null) {
+      initialLocation = '/therapist_dashboard';
+    }
+  }
+
+  runApp(MyApp(initialLocation: initialLocation));
 }
 
-final GoRouter _router = GoRouter(
-  routes: [
-    GoRoute(
-      path: '/',
-      builder: (context, state) => LanguageSelectionPage(
-        onLanguageSelected: (language) {
-          context.go('/login');
+GoRouter _createRouter(String initialLocation) {
+  return GoRouter(
+    initialLocation: initialLocation,
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) => LanguageSelectionPage(
+          onLanguageSelected: (language) {
+            context.go('/login');
+          },
+        ),
+      ),
+      GoRoute(path: '/login', builder: (context, state) => LoginPage()),
+      GoRoute(path: '/signup', builder: (context, state) => SignUpPage()),
+      GoRoute(
+        path: '/userinfo',
+        builder: (context, state) {
+          final extras = state.extra as Map<String, dynamic>? ?? {};
+          return UserInfoPage(
+            phone: extras['phone'] ?? '',
+            password: extras['password'] ?? '',
+          );
         },
       ),
-    ),
-    GoRoute(path: '/login', builder: (context, state) => LoginPage()),
-    GoRoute(path: '/signup', builder: (context, state) => SignUpPage()),
-    GoRoute(
-      path: '/userinfo',
-      builder: (context, state) {
-        final extras = state.extra as Map<String, dynamic>? ?? {};
-        return UserInfoPage(
-          phone: extras['phone'] ?? '',
-          password: extras['password'] ?? '',
-        );
-      },
-    ),
-    GoRoute(path: '/home', builder: (context, state) => const MainNavigation()),
-    GoRoute(
-      path: '/pre-assessment',
-      builder: (context, state) => const PreAssessmentTestPage(),
-    ),
-    GoRoute(
-      path: '/session-selection',
-      builder: (context, state) {
-        final extras = state.extra as Map<String, dynamic>? ?? {};
-        final score = (extras['score'] as num?)?.toDouble() ?? 0.0;
-        return SessionSelectionPage(
-          preAssessmentScore: score,
-        );
-      },
-    ),
-    GoRoute(
-      path: '/letters-session',
-      builder: (context, state) {
-        final extras = state.extra as Map<String, dynamic>? ?? {};
-        final score = (extras['preAssessmentScore'] as num?)?.toDouble() ?? 0.0;
-        return LearningSessionPage(
-          sessionType: 'letters',
-          preAssessmentScore: score,
-        );
-      },
-    ),
-    GoRoute(
-      path: '/words-session',
-      builder: (context, state) {
-        final extras = state.extra as Map<String, dynamic>? ?? {};
-        final score = (extras['preAssessmentScore'] as num?)?.toDouble() ?? 0.0;
-        return LearningSessionPage(
-          sessionType: 'words',
-          preAssessmentScore: score,
-        );
-      },
-    ),
-    GoRoute(
-      path: '/sentences-session',
-      builder: (context, state) {
-        final extras = state.extra as Map<String, dynamic>? ?? {};
-        final score = (extras['preAssessmentScore'] as num?)?.toDouble() ?? 0.0;
-        return LearningSessionPage(
-          sessionType: 'sentences',
-          preAssessmentScore: score,
-        );
-      },
-    ),
-    GoRoute(
-      path: '/therapist_dashboard',
-      builder: (context, state) => const TherapistDashboardPage(),
-    ),
-  ],
-);
+      GoRoute(
+        path: '/home',
+        builder: (context, state) => const MainNavigation(),
+      ),
+      GoRoute(
+        path: '/pre-assessment',
+        builder: (context, state) => const PreAssessmentTestPage(),
+      ),
+      GoRoute(
+        path: '/session-selection',
+        builder: (context, state) {
+          final extras = state.extra as Map<String, dynamic>? ?? {};
+          final score = (extras['score'] as num?)?.toDouble() ?? 0.0;
+          return SessionSelectionPage(preAssessmentScore: score);
+        },
+      ),
+      GoRoute(
+        path: '/letters-session',
+        builder: (context, state) {
+          final extras = state.extra as Map<String, dynamic>? ?? {};
+          final score =
+              (extras['preAssessmentScore'] as num?)?.toDouble() ?? 0.0;
+          return LearningSessionPage(
+            sessionType: 'letters',
+            preAssessmentScore: score,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/words-session',
+        builder: (context, state) {
+          final extras = state.extra as Map<String, dynamic>? ?? {};
+          final score =
+              (extras['preAssessmentScore'] as num?)?.toDouble() ?? 0.0;
+          return LearningSessionPage(
+            sessionType: 'words',
+            preAssessmentScore: score,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/sentences-session',
+        builder: (context, state) {
+          final extras = state.extra as Map<String, dynamic>? ?? {};
+          final score =
+              (extras['preAssessmentScore'] as num?)?.toDouble() ?? 0.0;
+          return LearningSessionPage(
+            sessionType: 'sentences',
+            preAssessmentScore: score,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/therapist_dashboard',
+        builder: (context, state) => const TherapistDashboardPage(),
+      ),
+    ],
+  );
+}
 
 // ─────────────────────────────────────────
 //  DESIGN TOKENS  (Duolingo-inspired)
@@ -414,11 +432,14 @@ class StepDots extends StatelessWidget {
 //  APP SHELL
 // ─────────────────────────────────────────
 class MyApp extends StatelessWidget {
+  final String initialLocation;
+  const MyApp({super.key, required this.initialLocation});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      routerConfig: _router,
+      routerConfig: _createRouter(initialLocation),
       theme: ThemeData(
         fontFamily: 'Nunito',
         scaffoldBackgroundColor: DuoColors.surface,

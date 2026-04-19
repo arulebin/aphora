@@ -1,4 +1,3 @@
-import 'package:aphora/data/models/usermodel.dart';
 
 class TherapistModel {
   final String id;

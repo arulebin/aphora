@@ -1,3 +1,4 @@
+import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -127,7 +128,7 @@ class _VideoCallPageState extends State<VideoCallPage> {
   Widget build(BuildContext context) {
     if (!_isAgoraSupported && _errorMessage.isNotEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text("Video Call")),
+        appBar: ClinicalAppBar(title: "Page"),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -151,7 +152,7 @@ class _VideoCallPageState extends State<VideoCallPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Video Call")),
+      appBar: ClinicalAppBar(title: "Page"),
       body: _isAgoraSupported
           ? Stack(
               children: [

@@ -1,4 +1,5 @@
 import 'package:aphora/main.dart';
+import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 
@@ -11,14 +12,14 @@ class WordNamingPage extends StatefulWidget {
   final VoidCallback? onCorrect;
 
   const WordNamingPage({
-    Key? key,
+    super.key,
     required this.word,
     this.definition,
     this.exampleSentence,
     this.currentWordIndex = 1,
     this.totalWords = 10,
     this.onCorrect,
-  }) : super(key: key);
+  });
 
   @override
   State<WordNamingPage> createState() => _WordNamingPageState();
@@ -216,17 +217,9 @@ class _WordNamingPageState extends State<WordNamingPage>
       },
       child: Scaffold(
         backgroundColor: DuoColors.surface,
-        appBar: AppBar(
-          automaticallyImplyLeading: true,
-          title: Text(
-            "Pronúncia da Palavra",
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          elevation: 0,
-          backgroundColor: DuoColors.green,
+        appBar: const ClinicalAppBar(
+          title: "Pronúncia da Palavra",
+          showBackButton: true,
         ),
         body: SingleChildScrollView(
           child: Padding(

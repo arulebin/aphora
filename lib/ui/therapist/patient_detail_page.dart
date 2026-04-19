@@ -1,6 +1,7 @@
+import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/main.dart';
-import 'package:aphora/ui/videocall_page.dart';
+import 'package:aphora/ui/video_call/videocall_page.dart';
 import 'package:flutter/material.dart';
 
 class PatientDetailPage extends StatelessWidget {
@@ -12,14 +13,7 @@ class PatientDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: DuoColors.surface,
-      appBar: AppBar(
-        title: Text(
-          "Patient Profile",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.purple,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
+      appBar: const ClinicalAppBar(title: "Patient Detail"),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(

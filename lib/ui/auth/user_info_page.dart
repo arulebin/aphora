@@ -7,8 +7,7 @@ class UserInfoPage extends StatefulWidget {
   final String phone;
   final String password;
 
-  const UserInfoPage({Key? key, required this.phone, required this.password})
-    : super(key: key);
+  const UserInfoPage({super.key, required this.phone, required this.password});
 
   @override
   _UserInfoPageState createState() => _UserInfoPageState();

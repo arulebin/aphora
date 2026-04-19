@@ -1,5 +1,6 @@
 import 'package:aphora/main.dart';
-import 'package:aphora/ui/word_naming_page.dart';
+import 'package:aphora/ui/learning/word_naming_page.dart';
+import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:flutter/material.dart';
 
 class WordNamingListPage extends StatelessWidget {
@@ -37,22 +38,15 @@ class WordNamingListPage extends StatelessWidget {
     },
   ];
 
+  WordNamingListPage({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: DuoColors.surface,
-      appBar: AppBar(
-        automaticallyImplyLeading: true,
-        title: Text(
-          "Pronuncia de Palavras",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-          ),
-        ),
-        elevation: 0,
-        backgroundColor: DuoColors.green,
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: const ClinicalAppBar(
+        title: "Pronuncia de Palavras",
+        showBackButton: true,
       ),
       body: SingleChildScrollView(
         child: Padding(

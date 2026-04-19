@@ -1,3 +1,4 @@
+import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:aphora/logic/language_service.dart';
 
@@ -5,9 +6,9 @@ class SettingsPage extends StatefulWidget {
   final Function(Language) onLanguageChanged;
 
   const SettingsPage({
-    Key? key,
+    super.key,
     required this.onLanguageChanged,
-  }) : super(key: key);
+  });
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -25,9 +26,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(LanguageService.get('settings')),
-      ),
+      appBar: ClinicalAppBar(title: "Page"),
       body: ListView(
         children: [
           Padding(

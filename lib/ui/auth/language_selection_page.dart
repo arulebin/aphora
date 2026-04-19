@@ -6,9 +6,9 @@ class LanguageSelectionPage extends StatefulWidget {
   final Function(Language) onLanguageSelected;
 
   const LanguageSelectionPage({
-    Key? key,
+    super.key,
     required this.onLanguageSelected,
-  }) : super(key: key);
+  });
 
   @override
   State<LanguageSelectionPage> createState() => _LanguageSelectionPageState();

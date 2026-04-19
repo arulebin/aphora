@@ -1,3 +1,4 @@
+import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:aphora/logic/speech_service.dart';
 import 'package:aphora/main.dart';
 import 'package:flutter/material.dart';
@@ -218,10 +219,7 @@ class _LearningSessionPageState extends State<LearningSessionPage> {
   Widget build(BuildContext context) {
     if (_items.isEmpty) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Loading...'),
-          backgroundColor: DuoColors.green,
-        ),
+        appBar: ClinicalAppBar(title: "Page"),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -229,16 +227,7 @@ class _LearningSessionPageState extends State<LearningSessionPage> {
     final item = _items[_currentItemIndex];
     final progress = (_currentItemIndex + 1) / _items.length;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_getSessionTitle()),
-        backgroundColor: DuoColors.green,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
-        ),
-      ),
+    return Scaffold(appBar: const ClinicalAppBar(title: "Learning Session", showBackButton: true),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(

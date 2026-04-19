@@ -1,3 +1,4 @@
+import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:aphora/data/models/pre_assessment_model.dart';
 import 'package:aphora/logic/speech_service.dart';
 import 'package:aphora/main.dart';
@@ -17,7 +18,7 @@ class _PreAssessmentTestPageState extends State<PreAssessmentTestPage> {
   late TextEditingController _spellingController;
 
   int _currentQuestionIndex = 0;
-  List<PreAssessmentResult> _results = [];
+  final List<PreAssessmentResult> _results = [];
   bool _isListening = false;
   String _recognizedText = '';
   bool _showResult = false;
@@ -328,10 +329,7 @@ class _PreAssessmentTestPageState extends State<PreAssessmentTestPage> {
   Widget build(BuildContext context) {
     if (_questions.isEmpty) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Pre-Assessment Test'),
-          backgroundColor: DuoColors.green,
-        ),
+        appBar: ClinicalAppBar(title: "Page"),
         body: const Center(child: CircularProgressIndicator()),
       );
     }

@@ -143,6 +143,33 @@ class UserDatabaseService {
   }
 
   /// =========================
+  /// 🔄 RESTORE SESSION (ON STARTUP)
+  /// =========================
+  Future<bool> restoreSession() async {
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) return false;
+
+    try {
+      // Check if it's a patient
+      final userDoc = await _db.collection(userCollection).doc(firebaseUser.uid).get();
+      if (userDoc.exists) {
+        currentUser.value = UserModel.fromMap(userDoc.data()!);
+        return true;
+      }
+
+      // Check if it's a therapist
+      final therapistDoc = await _db.collection(therapistCollection).doc(firebaseUser.uid).get();
+      if (therapistDoc.exists) {
+        currentTherapist.value = TherapistModel.fromMap(therapistDoc.data()!, therapistDoc.id);
+        return true;
+      }
+    } catch (e) {
+      print("Error restoring session: $e");
+    }
+    return false;
+  }
+
+  /// =========================
   /// 👤 GET CURRENT USER
   /// =========================
   Future<UserModel?> getCurrentUser() async {

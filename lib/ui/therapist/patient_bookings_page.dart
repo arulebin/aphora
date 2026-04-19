@@ -1,3 +1,4 @@
+import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:aphora/data/models/booking_model.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/main.dart';
@@ -5,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class PatientBookingsPage extends StatelessWidget {
-  const PatientBookingsPage({Key? key}) : super(key: key);
+  const PatientBookingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -13,21 +14,13 @@ class PatientBookingsPage extends StatelessWidget {
 
     if (user == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('My Bookings')),
-        body: const Center(child: Text("Please log in to view bookings.")),
+        appBar: ClinicalAppBar(title: "Page"),
       );
     }
 
     return Scaffold(
       backgroundColor: DuoColors.surface,
-      appBar: AppBar(
-        title: const Text(
-          'My Bookings',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: DuoColors.green,
-        foregroundColor: Colors.white,
-      ),
+      appBar: const ClinicalAppBar(title: "Page", showBackButton: true),
       body: StreamBuilder<List<BookingModel>>(
         stream: Locator.bookingDatabaseService.getBookingsForPatient(user.uid),
         builder: (context, snapshot) {

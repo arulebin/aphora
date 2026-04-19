@@ -1,14 +1,14 @@
+import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/main.dart';
-import 'package:aphora/ui/task_detail_page.dart';
+import 'package:aphora/ui/learning/task_detail_page.dart';
 import 'package:aphora/logic/language_service.dart';
 import 'package:flutter/material.dart';
 
 class TaskListPage extends StatefulWidget {
   final String category;
 
-  const TaskListPage({Key? key, this.category = "Pronunciation"})
-    : super(key: key);
+  const TaskListPage({super.key, this.category = "Pronunciation"});
 
   @override
   _TaskListPageState createState() => _TaskListPageState();
@@ -269,19 +269,7 @@ class _TaskListPageState extends State<TaskListPage> {
 
     return Scaffold(
       backgroundColor: DuoColors.surface,
-      appBar: AppBar(
-        automaticallyImplyLeading: true,
-        title: Text(
-          widget.category,
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-          ),
-        ),
-        elevation: 0,
-        backgroundColor: DuoColors.green,
-      ),
+      appBar: ClinicalAppBar(title: "Page"),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
@@ -328,7 +316,7 @@ class _TaskListPageState extends State<TaskListPage> {
               ),
             ),
             Text(
-              '${completedTasks}/${tasks.length}',
+              '$completedTasks/${tasks.length}',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,

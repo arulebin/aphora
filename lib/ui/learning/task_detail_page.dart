@@ -1,3 +1,4 @@
+import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -113,7 +114,9 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     List<int> v0 = List<int>.filled(v0Len, 0);
     List<int> v1 = List<int>.filled(v0Len, 0);
 
-    for (int i = 0; i < v0Len; i++) v0[i] = i;
+    for (int i = 0; i < v0Len; i++) {
+      v0[i] = i;
+    }
 
     for (int i = 0; i < s1.length; i++) {
       v1[0] = i + 1;
@@ -121,7 +124,9 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         int cost = (s1[i] == s2[j]) ? 0 : 1;
         v1[j + 1] = math.min(v1[j] + 1, math.min(v0[j + 1] + 1, v0[j] + cost));
       }
-      for (int j = 0; j < v0Len; j++) v0[j] = v1[j];
+      for (int j = 0; j < v0Len; j++) {
+        v0[j] = v1[j];
+      }
     }
     return v1[s2.length];
   }
@@ -235,7 +240,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     final task = widget.task;
 
     return Scaffold(
-      appBar: AppBar(title: Text("Task Detail")),
+      appBar: ClinicalAppBar(title: "Page"),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(

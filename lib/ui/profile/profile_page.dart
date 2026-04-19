@@ -1,23 +1,20 @@
+import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/main.dart';
-import 'package:aphora/ui/user/preassesment_test/pre_assessment_test_page.dart';
+import 'package:aphora/ui/assessment/pre_assessment_test_page.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class ProfilePage extends StatelessWidget {
+  const ProfilePage({super.key});
+
   @override
   Widget build(BuildContext context) {
     final user = Locator.userDatabaseService.currentUser.value;
 
     return Scaffold(
       backgroundColor: DuoColors.surface,
-      appBar: AppBar(
-        title: Text(
-          "My Profile",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: DuoColors.green,
-      ),
+      appBar: const ClinicalAppBar(title: "Page", showBackButton: true),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(16),
         child: Column(
@@ -170,14 +167,14 @@ class ProfilePage extends StatelessWidget {
   }
 
   void _showLinkTherapistDialog(BuildContext context) {
-    TextEditingController _controller = TextEditingController();
+    TextEditingController controller = TextEditingController();
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: Text("Link Therapist"),
           content: TextField(
-            controller: _controller,
+            controller: controller,
             decoration: InputDecoration(
               hintText: "Enter Therapist Code",
               border: OutlineInputBorder(),
@@ -191,7 +188,7 @@ class ProfilePage extends StatelessWidget {
             ElevatedButton(
               onPressed: () async {
                 final user = Locator.userDatabaseService.currentUser.value;
-                final code = _controller.text.trim();
+                final code = controller.text.trim();
 
                 if (user != null && code.isNotEmpty) {
                   // Validate therapist code exists
