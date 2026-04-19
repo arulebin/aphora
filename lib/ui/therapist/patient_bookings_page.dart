@@ -13,9 +13,7 @@ class PatientBookingsPage extends StatelessWidget {
     final user = Locator.userDatabaseService.currentUser.value;
 
     if (user == null) {
-      return Scaffold(
-        appBar: ClinicalAppBar(title: "Page"),
-      );
+      return Scaffold(appBar: ClinicalAppBar(title: "Page"));
     }
 
     return Scaffold(
@@ -29,6 +27,7 @@ class PatientBookingsPage extends StatelessWidget {
           }
 
           if (snapshot.hasError) {
+            print("Error: ${snapshot.error}");
             return Center(child: Text("Error: ${snapshot.error}"));
           }
 

@@ -23,7 +23,7 @@ class UserModel {
   final double averageFluency;
 
   // Caregiver/Therapist linkage
-  final String? linkedCaregiverId;
+  String? linkedCaregiverId;
   // Metadata
   final DateTime createdAt;
   final DateTime updatedAt;
