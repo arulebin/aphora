@@ -1,8 +1,7 @@
 import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/main.dart';
-import 'package:aphora/ui/TherapistPage.dart'
-    show AphasiaTherapistPage, therapistPage, TherapistPage;
+import 'package:aphora/ui/TherapistPage.dart'show therapistPage, TherapistPage;
 import 'package:aphora/ui/settings_page.dart';
 import 'package:aphora/ui/task_list_page.dart';
 import 'package:aphora/ui/profile_page.dart';
@@ -137,11 +136,10 @@ class _HomePageState extends State<HomePage> {
     final int completedExercisesCount = user?.completedExercises.length ?? 0;
     // Simple dynamic calculation for demo purposes:
     final int totalTasks =
-        14; // 6 (Pronunciation) + 5 (Word naming) + 3 (Conversation)
+        14; 
     final double completionPercent = totalTasks > 0
         ? (completedExercisesCount / totalTasks) * 100
         : 0.0;
-    final int sessions = user?.sessionsCompleted ?? 0;
 
     return Scaffold(
       backgroundColor: Color(0xFFF5F7FB),

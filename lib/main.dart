@@ -6,6 +6,8 @@ import 'package:aphora/ui/user_info_page.dart';
 import 'package:aphora/ui/language_selection_page.dart';
 import 'package:aphora/ui/main_navigation.dart';
 import 'package:aphora/ui/user/preassesment_test/pre_assessment_test_page.dart';
+import 'package:aphora/ui/session_selection_page.dart';
+import 'package:aphora/ui/learning_session_page.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:aphora/ui/TherapistDashboardPage.dart';
@@ -44,6 +46,49 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/pre-assessment',
       builder: (context, state) => const PreAssessmentTestPage(),
+    ),
+    GoRoute(
+      path: '/session-selection',
+      builder: (context, state) {
+        final extras = state.extra as Map<String, dynamic>? ?? {};
+        final score = (extras['score'] as num?)?.toDouble() ?? 0.0;
+        return SessionSelectionPage(
+          preAssessmentScore: score,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/letters-session',
+      builder: (context, state) {
+        final extras = state.extra as Map<String, dynamic>? ?? {};
+        final score = (extras['preAssessmentScore'] as num?)?.toDouble() ?? 0.0;
+        return LearningSessionPage(
+          sessionType: 'letters',
+          preAssessmentScore: score,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/words-session',
+      builder: (context, state) {
+        final extras = state.extra as Map<String, dynamic>? ?? {};
+        final score = (extras['preAssessmentScore'] as num?)?.toDouble() ?? 0.0;
+        return LearningSessionPage(
+          sessionType: 'words',
+          preAssessmentScore: score,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/sentences-session',
+      builder: (context, state) {
+        final extras = state.extra as Map<String, dynamic>? ?? {};
+        final score = (extras['preAssessmentScore'] as num?)?.toDouble() ?? 0.0;
+        return LearningSessionPage(
+          sessionType: 'sentences',
+          preAssessmentScore: score,
+        );
+      },
     ),
     GoRoute(
       path: '/therapist_dashboard',

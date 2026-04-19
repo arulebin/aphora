@@ -2,6 +2,7 @@ import 'package:aphora/data/models/pre_assessment_model.dart';
 import 'package:aphora/logic/speech_service.dart';
 import 'package:aphora/main.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class PreAssessmentTestPage extends StatefulWidget {
   const PreAssessmentTestPage({super.key});
@@ -278,6 +279,9 @@ class _PreAssessmentTestPageState extends State<PreAssessmentTestPage> {
     double averageAccuracy =
         _results.isEmpty ? 0 : _results.map((r) => r.accuracy).reduce((a, b) => a + b) / _results.length;
 
+    // Calculate total score out of 30
+    double totalScore = (correctAnswers / _results.length) * 30;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -292,15 +296,21 @@ class _PreAssessmentTestPageState extends State<PreAssessmentTestPage> {
             Text('Correct Answers: $correctAnswers'),
             const SizedBox(height: 10),
             Text('Average Accuracy: ${averageAccuracy.toStringAsFixed(1)}%'),
+            const SizedBox(height: 10),
+            Text('Total Score: ${totalScore.toStringAsFixed(1)}/30'),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              Navigator.pop(context);
+              // Navigate to session selection page with score
+              context.pushReplacement(
+                '/session-selection',
+                extra: {'score': totalScore},
+              );
             },
-            child: const Text('Done'),
+            child: const Text('Continue to Session'),
           ),
         ],
       ),
