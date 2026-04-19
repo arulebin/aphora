@@ -3,7 +3,6 @@ import 'package:aphora/data/models/therapist_model.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/main.dart';
-import 'package:aphora/ui/login_page.dart';
 import 'package:aphora/ui/patient_detail_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

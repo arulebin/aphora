@@ -9,6 +9,7 @@ import 'package:aphora/ui/profile_page.dart';
 import 'package:aphora/ui/patient_bookings_page.dart';
 import 'package:aphora/ui/phonetic_test_page.dart';
 import 'package:aphora/ui/videocall_page.dart';
+import 'package:aphora/ui/user/preassesment_test/pre_assessment_test_page.dart';
 import 'package:aphora/data/models/booking_model.dart';
 import 'package:aphora/data/models/therapist_model.dart';
 import 'package:flutter/material.dart';
@@ -200,7 +201,54 @@ class _HomePageState extends State<HomePage> {
 
               SizedBox(height: 20),
 
-              // 🚀 Start Therapy Card
+              // � Pre-Assessment Test Card
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.orange,
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Pre-Assessment Test",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      "Evaluate your speech abilities (10 letters, 10 words, 10 sentences)",
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    SizedBox(height: 15),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.orange,
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const PreAssessmentTestPage(),
+                          ),
+                        );
+                      },
+                      child: Text("Start Assessment"),
+                    ),
+                  ],
+                ),
+              ),
+
+              SizedBox(height: 20),
+
+              // �🚀 Start Therapy Card
               Container(
                 width: double.infinity,
                 padding: EdgeInsets.all(20),

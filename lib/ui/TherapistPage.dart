@@ -1,7 +1,5 @@
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/main.dart';
-import 'package:aphora/ui/TherapistDashboardPage.dart';
-import 'package:aphora/ui/login_page.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 

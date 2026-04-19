@@ -1,13 +1,12 @@
 import 'package:aphora/firebase_options.dart';
 import 'package:aphora/logic/locator.dart';
-import 'package:aphora/ui/home_page.dart';
-import 'package:aphora/ui/login_page.dart';
-import 'package:aphora/ui/signup_page.dart';
+import 'package:aphora/ui/user/Login&signup/login_page.dart';
+import 'package:aphora/ui/user/Login&signup/signup_page.dart';
 import 'package:aphora/ui/user_info_page.dart';
 import 'package:aphora/ui/language_selection_page.dart';
+import 'package:aphora/ui/main_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:aphora/ui/TherapistPage.dart';
 import 'package:aphora/ui/TherapistDashboardPage.dart';
 import 'package:firebase_core/firebase_core.dart';
 
@@ -40,11 +39,7 @@ final GoRouter _router = GoRouter(
         );
       },
     ),
-    GoRoute(path: '/home', builder: (context, state) => HomePage()),
-    GoRoute(
-      path: '/therapist',
-      builder: (context, state) => const TherapistPage(),
-    ),
+    GoRoute(path: '/home', builder: (context, state) => const MainNavigation()),
     GoRoute(
       path: '/therapist_dashboard',
       builder: (context, state) => const TherapistDashboardPage(),

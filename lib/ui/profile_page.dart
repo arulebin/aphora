@@ -1,5 +1,6 @@
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/main.dart';
+import 'package:aphora/ui/user/preassesment_test/pre_assessment_test_page.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -100,6 +101,30 @@ class ProfilePage extends StatelessWidget {
                 ),
               ),
 
+            SizedBox(height: 20),
+            // Pre-Assessment Test Button
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PreAssessmentTestPage(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.assignment_turned_in),
+              label: const Text(
+                "Take Pre-Assessment Test",
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ),
             SizedBox(height: 20),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
