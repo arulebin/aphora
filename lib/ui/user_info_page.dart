@@ -331,10 +331,10 @@ class _UserInfoPageState extends State<UserInfoPage> {
 
                             if (user != null) {
                               print(
-                                "✅ Signup successful! Navigating to home...",
+                                "✅ Signup successful! Navigating to pre-assessment...",
                               );
                               if (mounted) {
-                                context.go('/home');
+                                context.go('/pre-assessment');
                               }
                             } else {
                               print("❌ Signup returned null");

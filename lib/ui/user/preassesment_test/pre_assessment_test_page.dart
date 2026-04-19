@@ -115,7 +115,20 @@ class _PreAssessmentTestPageState extends State<PreAssessmentTestPage> {
 
   void _speakCurrentQuestion() async {
     final question = _questions[_currentQuestionIndex];
+    
+    print('User requested to speak: ${question.tamil}');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Playing audio... Check your volume is on.'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+    
     await _speechService.speakText(question.tamil, language: 'ta-IN');
+    
+    // Give audio time to play
+    await Future.delayed(const Duration(milliseconds: 500));
+    print('Finished speaking');
   }
 
   void _startListening() async {
@@ -165,23 +178,35 @@ class _PreAssessmentTestPageState extends State<PreAssessmentTestPage> {
   }
 
   void _evaluateAnswer() {
-    if (_recognizedText.isEmpty) {
+    final text = _recognizedText.trim();
+    print('Evaluating answer: "$text"');
+    
+    if (text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not recognize speech. Please try again.')),
+        const SnackBar(
+          content: Text('Could not recognize speech. Please try again.'),
+          duration: Duration(seconds: 2),
+        ),
       );
       return;
     }
 
     final question = _questions[_currentQuestionIndex];
+    print('Expected: "${question.tamil}"');
+    print('Actual: "$text"');
+    
     final accuracy =
-        TextEvaluator.calculateSimilarity(question.tamil, _recognizedText);
+        TextEvaluator.calculateSimilarity(question.tamil, text);
+    print('Calculated accuracy: $accuracy');
+    
     final isCorrect = accuracy >= 70;
+    print('Is correct ($accuracy >= 70): $isCorrect');
 
     final result = PreAssessmentResult(
       questionId: question.id,
       category: question.category,
       tamilText: question.tamil,
-      userSpoken: _recognizedText,
+      userSpoken: text,
       isCorrect: isCorrect,
       accuracy: accuracy,
       timestamp: DateTime.now(),
@@ -195,24 +220,34 @@ class _PreAssessmentTestPageState extends State<PreAssessmentTestPage> {
   }
 
   void _evaluateSpelling() {
-    if (_spellingController.text.isEmpty) {
+    final text = _spellingController.text.trim();
+    print('Evaluating spelling: "$text"');
+    
+    if (text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please type the spelling.')),
+        const SnackBar(
+          content: Text('Please type the spelling.'),
+          duration: Duration(seconds: 2),
+        ),
       );
       return;
     }
 
     final question = _questions[_currentQuestionIndex];
-    final typedSpelling = _spellingController.text;
+    print('Expected: "${question.tamil}"');
+    print('Actual: "$text"');
+    
     final accuracy =
-        TextEvaluator.calculateSimilarity(question.tamil, typedSpelling);
+        TextEvaluator.calculateSimilarity(question.tamil, text);
+    print('Calculated accuracy: $accuracy');
+    
     final isCorrect = accuracy >= 70;
 
     final result = PreAssessmentResult(
       questionId: question.id,
       category: question.category,
       tamilText: question.tamil,
-      userSpoken: typedSpelling,
+      userSpoken: text,
       isCorrect: isCorrect,
       accuracy: accuracy,
       timestamp: DateTime.now(),

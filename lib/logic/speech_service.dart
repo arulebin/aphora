@@ -13,6 +13,42 @@ class SpeechService {
     _speechToText = stt.SpeechToText();
     _flutterTts = FlutterTts();
     _initializeSpeech();
+    _initializeTTS();
+  }
+
+  Future<void> _initializeTTS() async {
+    try {
+      // Initialize TTS engine - try Google TTS first, then fallback
+      try {
+        await _flutterTts.setEngine('com.google.android.tts');
+        print('TTS Engine set to: com.google.android.tts');
+      } catch (e) {
+        print('Google TTS not available: $e, using default engine');
+      }
+      
+      // Set default language
+      await _flutterTts.setLanguage('ta-IN');
+      print('TTS Language set to: ta-IN');
+      
+      // Set audio attributes for better volume
+      await _flutterTts.setVolume(1.0); // Max volume (0.0 - 1.0)
+      await _flutterTts.setSpeechRate(0.5); // Slower rate for clarity (0.0 - 2.0)
+      await _flutterTts.setPitch(1.0); // Normal pitch (0.5 - 2.0)
+      
+      // Set speaking queue mode to flush (immediately play)
+      // Note: setQueueMode is not available on web, so wrap in try-catch
+      try {
+        await _flutterTts.setQueueMode(1); // 1 = flush queue
+        print('TTS Queue mode: FLUSH (immediate playback)');
+      } catch (e) {
+        print('Note: setQueueMode not available on this platform: $e');
+      }
+      
+      print('TTS Initialized successfully - volume:1.0, rate:0.5, pitch:1.0');
+      
+    } catch (e) {
+      print('Error initializing TTS: $e');
+    }
   }
 
   Future<void> _initializeSpeech() async {
@@ -40,20 +76,93 @@ class SpeechService {
 
   Future<void> speakText(String text, {String language = 'ta-IN'}) async {
     try {
+      if (text.isEmpty) {
+        print('Cannot speak empty text');
+        return;
+      }
+
+      print('═════════════════════════════════════════════');
+      print('SPEAK REQUEST: "$text"');
+      print('Language: $language');
+      print('═════════════════════════════════════════════');
+      
+      // Set language
       await _flutterTts.setLanguage(language);
+      print('✓ Language set to: $language');
+      
+      // Ensure volume is at max - CRITICAL FOR AUDIO
+      await _flutterTts.setVolume(1.0);
+      print('✓ Volume set to: 1.0 (MAXIMUM)');
+      
+      // Set speech rate for clarity
       await _flutterTts.setSpeechRate(0.5);
+      print('✓ Speech rate set to: 0.5 (CLEAR & SLOW)');
+      
+      // Set pitch
       await _flutterTts.setPitch(1.0);
-      await _flutterTts.speak(text);
-      print('Speaking: $text');
+      print('✓ Pitch set to: 1.0 (NORMAL)');
+      
+      // Set queue mode to flush (play immediately)
+      // Note: setQueueMode is not available on web, so wrap in try-catch
+      try {
+        await _flutterTts.setQueueMode(1);
+        print('✓ Queue mode: FLUSH (immediate playback)');
+      } catch (e) {
+        print('Note: setQueueMode not available on this platform');
+      }
+      
+      // Stop any previous speech to avoid conflicts
+      try {
+        await _flutterTts.stop();
+        print('✓ Stopped any previous speech');
+      } catch (e) {
+        print('Note: Could not stop previous speech: $e');
+      }
+      
+      // Give a small delay between stop and start
+      await Future.delayed(const Duration(milliseconds: 200));
+      
+      // Speak the text - THIS IS THE CRITICAL CALL
+      print('🔊 Initiating speech synthesis...');
+      final result = await _flutterTts.speak(text);
+      
+      print('Speech synthesis result code: $result');
+      print('Result meaning: ${_interpretResultCode(result)}');
+      
+      if (result == 1) {
+        print('✅ SUCCESS: Speaking started for: "$text"');
+        print('═════════════════════════════════════════════');
+      } else if (result == 0) {
+        print('⚠️  WARNING: Speech synthesis returned 0 (may still be playing)');
+        print('═════════════════════════════════════════════');
+      } else {
+        print('❌ ERROR: Failed to start speaking. Result code: $result');
+        print('═════════════════════════════════════════════');
+      }
     } catch (e) {
-      print('Error speaking text: $e');
+      print('❌ EXCEPTION during speakText: $e');
+      print('Stack trace:');
+      print(StackTrace.current);
+      print('═════════════════════════════════════════════');
     }
+  }
+  
+  String _interpretResultCode(dynamic code) {
+    if (code == 1) return 'SUCCESS (1): Speech initiated';
+    if (code == 0) return 'NEUTRAL (0): Unknown/May be playing';
+    if (code == -1) return 'ERROR (-1): Synthesis failed';
+    return 'UNKNOWN ($code): Unrecognized code';
   }
 
   Future<String> startListening({String language = 'ta-IN', int maxDuration = 10}) async {
+    // Ensure initialization is complete
     if (!_speechToText.isAvailable) {
-      print('Speech to text not available');
-      return '';
+      print('Speech to text not available, reinitializing...');
+      await _initializeSpeech();
+      if (!_speechToText.isAvailable) {
+        print('Speech to text still not available');
+        return '';
+      }
     }
 
     if (_isListening) {
@@ -67,17 +176,24 @@ class SpeechService {
       _listeningCompleter = Completer<String>();
 
       // Try to get available locales
-      var locales = await _speechToText.locales();
-      print('Available locales: ${locales.map((l) => l.localeId).toList()}');
+      List<stt.LocaleName> locales = [];
+      try {
+        locales = await _speechToText.locales();
+        print('Available locales: ${locales.map((l) => l.localeId).toList()}');
+      } catch (e) {
+        print('Error getting locales: $e');
+      }
 
       // Try different language codes for Tamil
       String effectiveLanguage = language;
-      if (!locales.any((l) => l.localeId == language)) {
+      if (locales.isNotEmpty && !locales.any((l) => l.localeId == language)) {
         // Fallback options for Tamil
         if (locales.any((l) => l.localeId.startsWith('ta'))) {
           effectiveLanguage = locales.firstWhere((l) => l.localeId.startsWith('ta')).localeId;
         } else if (locales.any((l) => l.localeId == 'en-IN')) {
           effectiveLanguage = 'en-IN'; // Fallback to Indian English
+        } else if (locales.isNotEmpty) {
+          effectiveLanguage = locales.first.localeId; // Use first available
         }
       }
 
@@ -97,6 +213,9 @@ class SpeechService {
         localeId: effectiveLanguage,
         listenFor: Duration(seconds: maxDuration),
         pauseFor: const Duration(seconds: 2),
+        onSoundLevelChange: (level) {
+          print('Sound level: $level');
+        },
       );
 
       // Wait with timeout
@@ -104,6 +223,7 @@ class SpeechService {
           .timeout(
             Duration(seconds: maxDuration + 2),
             onTimeout: () {
+              print('Listening timeout, returning: $_recognizedText');
               _isListening = false;
               return _recognizedText;
             },
@@ -115,6 +235,7 @@ class SpeechService {
           });
 
       await stopListening();
+      print('Returning result: $result');
       return result;
     } catch (e) {
       print('Error in startListening: $e');

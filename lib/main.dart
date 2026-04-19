@@ -5,6 +5,7 @@ import 'package:aphora/ui/user/Login&signup/signup_page.dart';
 import 'package:aphora/ui/user_info_page.dart';
 import 'package:aphora/ui/language_selection_page.dart';
 import 'package:aphora/ui/main_navigation.dart';
+import 'package:aphora/ui/user/preassesment_test/pre_assessment_test_page.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:aphora/ui/TherapistDashboardPage.dart';
@@ -40,6 +41,10 @@ final GoRouter _router = GoRouter(
       },
     ),
     GoRoute(path: '/home', builder: (context, state) => const MainNavigation()),
+    GoRoute(
+      path: '/pre-assessment',
+      builder: (context, state) => const PreAssessmentTestPage(),
+    ),
     GoRoute(
       path: '/therapist_dashboard',
       builder: (context, state) => const TherapistDashboardPage(),
