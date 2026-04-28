@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:aphora/data/learning/question_data.dart';
 import 'package:aphora/main.dart';
 import 'package:aphora/ui/widgets/clinical_app_bar.dart';
+import 'package:aphora/logic/speech_service.dart';
 
 class VisualQuestionPage extends StatefulWidget {
   final List<QuestionData> questions;
@@ -20,12 +21,141 @@ class VisualQuestionPage extends StatefulWidget {
 class _VisualQuestionPageState extends State<VisualQuestionPage> {
   late int currentIndex;
   late List<bool> answeredQuestions;
+  late SpeechService _speechService;
+  int score = 0;
 
   @override
   void initState() {
     super.initState();
     currentIndex = 0;
     answeredQuestions = List.filled(widget.questions.length, false);
+    _speechService = SpeechService();
+  }
+
+  @override
+  void dispose() {
+    _speechService.dispose();
+    super.dispose();
+  }
+
+  void _playAudio() async {
+    final question = widget.questions[currentIndex];
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Playing audio... Check your volume is on.'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+    await _speechService.speakText(question.tamilPhrase, language: 'ta-IN');
+  }
+
+  void _startListening() async {
+    try {
+      final recognized = await _speechService.startListening(
+        language: 'ta-IN',
+        maxDuration: 10,
+      );
+
+      if (mounted) {
+        // Evaluate the response
+        _evaluateAnswer(recognized);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  void _evaluateAnswer(String spokenText) {
+    final question = widget.questions[currentIndex];
+    final accuracy = TextEvaluator.calculateSimilarity(
+      question.englishPhrase.toLowerCase(),
+      spokenText.toLowerCase(),
+    );
+
+    if (accuracy >= 70) {
+      // Correct answer - add 1 point
+      setState(() {
+        score++;
+        answeredQuestions[currentIndex] = true;
+      });
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Correct! +1 Point',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Accuracy: ${accuracy.toStringAsFixed(1)}%',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF10B981),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      // Auto move to next question after 2 seconds
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          _goToNextQuestion();
+        }
+      });
+    } else {
+      // Wrong answer
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.cancel, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Try Again',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Accuracy: ${accuracy.toStringAsFixed(1)}% (Need 70%)',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   void _goToNextQuestion() {
@@ -59,9 +189,27 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              // Score Display
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: DuoColors.green.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Score: $score',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: DuoColors.green,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
               // Progress Indicator
               _buildProgressIndicator(progress),
-              SizedBox(height: 30),
+              const SizedBox(height: 30),
 
               // Question Counter
               Text(
@@ -72,11 +220,11 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
                   color: DuoColors.textLight,
                 ),
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
 
               // Large Image Display
               _buildImageDisplay(question),
-              SizedBox(height: 40),
+              const SizedBox(height: 40),
 
               // English Phrase
               Text(
@@ -88,7 +236,7 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
 
               // Tamil Phrase
               Text(
@@ -100,11 +248,15 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
 
               // Difficulty Badge
               _buildDifficultyBadge(question.difficulty),
-              SizedBox(height: 40),
+              const SizedBox(height: 40),
+
+              // Audio and Microphone Control Buttons
+              _buildControlButtons(),
+              const SizedBox(height: 30),
 
               // Navigation Buttons
               _buildNavigationButtons(),
@@ -112,6 +264,43 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildControlButtons() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        // Audio Button - Hear the Tamil pronunciation
+        ElevatedButton.icon(
+          onPressed: _playAudio,
+          icon: const Icon(Icons.volume_up),
+          label: const Text('Hear'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: DuoColors.blue,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+
+        // Microphone Button - Record user's speech
+        ElevatedButton.icon(
+          onPressed: _startListening,
+          icon: const Icon(Icons.mic),
+          label: const Text('Record'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

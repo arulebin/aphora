@@ -5,9 +5,10 @@ import 'package:aphora/ui/profile/settings_page.dart';
 import 'package:aphora/ui/learning/task_list_page.dart';
 import 'package:aphora/ui/profile/profile_page.dart';
 import 'package:aphora/ui/therapist/patient_bookings_page.dart';
-import 'package:aphora/ui/learning/phonetic_test_page.dart';
 import 'package:aphora/ui/video_call/videocall_page.dart';
 import 'package:aphora/ui/assessment/pre_assessment_test_page.dart';
+import 'package:aphora/ui/learning/visual_question_page.dart';
+import 'package:aphora/data/learning/question_data.dart';
 import 'package:aphora/data/models/booking_model.dart';
 import 'package:aphora/data/models/therapist_model.dart';
 import 'package:flutter/material.dart';
@@ -203,30 +204,65 @@ class _AssessmentPageState extends State<AssessmentPage> {
               const SizedBox(height: 32),
 
               const Text(
-                "Daily Exercises",
+                "Assessment Levels",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
               ),
               const SizedBox(height: 16),
 
-              _buildExerciseTile(
-                "Pronunciation Practice",
-                "Pronunciation",
-                Icons.record_voice_over_outlined,
+              // Easy Level - Image with name in Tamil + Audio
+              _buildDifficultyLevelCard(
+                title: "Easy Level",
+                subtitle: "Image + Tamil name + Audio (Like Word Page)",
+                color: const Color(0xFF10B981),
+                icon: Icons.image_outlined,
+                onTap: () {
+                  // Get all 50 questions and navigate to VisualQuestionPage
+                  final allQuestions = getAllQuestions();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => VisualQuestionPage(
+                        questions: allQuestions,
+                        category: "Easy Level - Visual Learning",
+                      ),
+                    ),
+                  );
+                },
               ),
-              const SizedBox(height: 8),
-              _buildExerciseTile(
-                "Word Naming",
-                "Word Naming",
-                Icons.text_fields_outlined,
+              const SizedBox(height: 12),
+
+              // Medium Level - Image only (User must name it)
+              _buildDifficultyLevelCard(
+                title: "Medium Level",
+                subtitle: "Image only - User must name the object",
+                color: const Color(0xFFF59E0B),
+                icon: Icons.image_search_outlined,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const TaskListPage(category: "Word Naming"),
+                    ),
+                  );
+                },
               ),
-              const SizedBox(height: 8),
-              _buildExerciseTile(
-                "Conversation Mode",
-                "Conversation",
-                Icons.chat_bubble_outline,
+              const SizedBox(height: 12),
+
+              // Hard Level - Conversation Mode
+              _buildDifficultyLevelCard(
+                title: "Hard Level",
+                subtitle: "Conversation Mode - Interactive dialogue",
+                color: const Color(0xFFEF4444),
+                icon: Icons.chat_bubble_outline,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const TaskListPage(category: "Conversation"),
+                    ),
+                  );
+                },
               ),
-              const SizedBox(height: 8),
-              _buildPhoneticSoundTaskTile(),
               
               const SizedBox(height: 32),
               const Text(
@@ -313,50 +349,70 @@ class _AssessmentPageState extends State<AssessmentPage> {
     );
   }
 
-  Widget _buildExerciseTile(String title, String category, IconData icon) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: ListTile(
-        leading: Icon(icon, color: const Color(0xFF1E88E5)),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF334155))),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Color(0xFFCBD5E1)),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TaskListPage(category: category),
+  Widget _buildDifficultyLevelCard({
+    required String title,
+    required String subtitle,
+    required Color color,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-          );
-        },
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 14, color: Color(0xFFCBD5E1)),
+          ],
+        ),
       ),
     );
   }
-
-  Widget _buildPhoneticSoundTaskTile() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: ListTile(
-        leading: const Icon(Icons.mic_none_outlined, color: Color(0xFF1E88E5)),
-        title: const Text("Phonetic Sound Test", style: TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF334155))),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Color(0xFFCBD5E1)),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const PhoneticTestPage()),
-          );
-        },
-      ),
-    );
-  }
-
   Widget _buildUnlinkedTherapistCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -524,4 +580,17 @@ class _AssessmentPageState extends State<AssessmentPage> {
       ),
     );
   }
+
+  List<QuestionData> getAllQuestions() {
+    // Return all 50 questions from all categories
+    return [
+      ...getQuestionsByCategory('Basic Needs'),
+      ...getQuestionsByCategory('People'),
+      ...getQuestionsByCategory('Actions'),
+      ...getQuestionsByCategory('Body Parts'),
+      ...getQuestionsByCategory('Objects'),
+      ...getQuestionsByCategory('Feelings'),
+    ];
+  }
 }
+

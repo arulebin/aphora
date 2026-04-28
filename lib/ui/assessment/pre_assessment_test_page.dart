@@ -25,19 +25,6 @@ class _PreAssessmentTestPageState extends State<PreAssessmentTestPage> {
   double _currentAccuracy = 0.0;
 
   // Tamil test data with different difficulty levels
-  final List<Map<String, dynamic>> _tamilLetters = [
-    {'tamil': 'அ', 'english': 'A'},
-    {'tamil': 'ஆ', 'english': 'AA'},
-    {'tamil': 'இ', 'english': 'I'},
-    {'tamil': 'ஈ', 'english': 'II'},
-    {'tamil': 'உ', 'english': 'U'},
-    {'tamil': 'ஊ', 'english': 'UU'},
-    {'tamil': 'எ', 'english': 'E'},
-    {'tamil': 'ஏ', 'english': 'EE'},
-    {'tamil': 'ஐ', 'english': 'AI'},
-    {'tamil': 'ஒ', 'english': 'O'},
-  ];
-
   final List<Map<String, dynamic>> _tamilWords = [
     {'tamil': 'மல்லி', 'english': 'Jasmine'},
     {'tamil': 'பூ', 'english': 'Flower'},
@@ -74,19 +61,6 @@ class _PreAssessmentTestPageState extends State<PreAssessmentTestPage> {
 
   void _initializeQuestions() {
     _questions = [];
-
-    // Add 10 letters
-    for (int i = 0; i < 10; i++) {
-      _questions.add(
-        PreAssessmentQuestion(
-          id: 'letter_$i',
-          category: 'letter',
-          tamil: _tamilLetters[i]['tamil'],
-          english: _tamilLetters[i]['english'],
-          difficulty: 1,
-        ),
-      );
-    }
 
     // Add 10 words
     for (int i = 0; i < 10; i++) {
