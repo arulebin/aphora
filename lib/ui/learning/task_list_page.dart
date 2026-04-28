@@ -1,8 +1,9 @@
 import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/main.dart';
-import 'package:aphora/ui/learning/task_detail_page.dart';
 import 'package:aphora/logic/language_service.dart';
+import 'package:aphora/ui/learning/visual_question_page.dart';
+import 'package:aphora/data/learning/question_data.dart';
 import 'package:flutter/material.dart';
 
 class TaskListPage extends StatefulWidget {
@@ -381,11 +382,21 @@ class _TaskListPageState extends State<TaskListPage> {
 
     return GestureDetector(
       onTap: () async {
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => TaskDetailPage(task: task)),
-        );
-        if (result == true) {
+        // Get questions for this category
+        final questions = getQuestionsByCategory(widget.category);
+        
+        if (questions.isNotEmpty) {
+          // Navigate to visual question page
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VisualQuestionPage(
+                questions: questions,
+                category: widget.category,
+              ),
+            ),
+          );
+          // Mark task as completed
           setState(() {
             baseTasks[index]['completed'] = true;
           });
