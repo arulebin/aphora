@@ -382,9 +382,19 @@ class _TaskListPageState extends State<TaskListPage> {
 
     return GestureDetector(
       onTap: () async {
-        // Get questions for this category
-        final questions = getQuestionsByCategory(widget.category);
-        
+        // Map UI categories to question_data categories.
+        const categoryMap = {
+          'Pronunciation': 'Actions',
+          'Word Naming': 'Common Objects',
+          'Conversation': 'Feelings',
+        };
+        final mapped = categoryMap[widget.category] ?? widget.category;
+        var questions = getQuestionsByCategory(mapped);
+        if (questions.isEmpty) {
+          // Fall back to the full set so taps are never a no-op.
+          questions = allQuestions;
+        }
+
         if (questions.isNotEmpty) {
           // Navigate to visual question page
           await Navigator.push(

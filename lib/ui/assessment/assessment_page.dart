@@ -588,7 +588,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
       ...getQuestionsByCategory('People'),
       ...getQuestionsByCategory('Actions'),
       ...getQuestionsByCategory('Body Parts'),
-      ...getQuestionsByCategory('Objects'),
+      ...getQuestionsByCategory('Common Objects'),
       ...getQuestionsByCategory('Feelings'),
     ];
   }
