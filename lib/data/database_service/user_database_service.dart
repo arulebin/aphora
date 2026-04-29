@@ -147,7 +147,8 @@ class UserDatabaseService {
   /// 🔄 RESTORE SESSION (ON STARTUP)
   /// =========================
   Future<bool> restoreSession() async {
-    final firebaseUser = _auth.currentUser;
+    // Wait for the auth state to be resolved from local storage
+    final firebaseUser = await _auth.authStateChanges().first;
     if (firebaseUser == null) return false;
 
     try {
