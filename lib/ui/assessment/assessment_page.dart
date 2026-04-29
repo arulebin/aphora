@@ -3,13 +3,15 @@ import 'package:aphora/logic/locator.dart';
 import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:aphora/ui/profile/settings_page.dart';
 import 'package:aphora/ui/learning/task_list_page.dart';
+import 'package:aphora/ui/learning/medium_level_page.dart';
+import 'package:aphora/ui/learning/hard_level_page.dart';
 import 'package:aphora/ui/profile/profile_page.dart';
 import 'package:aphora/ui/therapist/patient_bookings_page.dart';
 import 'package:aphora/ui/video_call/videocall_page.dart';
 import 'package:aphora/ui/assessment/pre_assessment_test_page.dart';
-import 'package:aphora/ui/assessment/gamified_image_selection_page.dart';
+import 'package:aphora/ui/assessment/gamified_image_selection_page.dart' hide allQuestions;
 import 'package:aphora/ui/learning/visual_question_page.dart';
-import 'package:aphora/data/learning/question_data.dart';
+import 'package:aphora/data/learning/question_data.dart' show QuestionData, allQuestions, getQuestionsByCategory;
 import 'package:aphora/data/models/booking_model.dart';
 import 'package:aphora/data/models/therapist_model.dart';
 import 'package:flutter/material.dart';
@@ -258,24 +260,26 @@ class _AssessmentPageState extends State<AssessmentPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const TaskListPage(category: "Word Naming"),
+                      builder: (context) => MediumLevelPage(
+                        questions: allQuestions,
+                      ),
                     ),
                   );
                 },
               ),
               const SizedBox(height: 12),
 
-              // Hard Level - Conversation Mode
+              // Hard Level - Sentence based learning
               _buildDifficultyLevelCard(
                 title: "Hard Level",
-                subtitle: "Conversation Mode - Interactive dialogue",
+                subtitle: "Sentence Learning - Speak the sentences",
                 color: const Color(0xFFEF4444),
                 icon: Icons.chat_bubble_outline,
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const TaskListPage(category: "Conversation"),
+                      builder: (context) => const HardLevelPage(),
                     ),
                   );
                 },

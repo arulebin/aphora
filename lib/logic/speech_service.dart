@@ -287,13 +287,13 @@ class SpeechService {
 class TextEvaluator {
   /// Calculate similarity percentage between expected and actual text
   static double calculateSimilarity(String expected, String actual) {
-    // Normalize texts
+    // Normalize texts - Remove extra spaces and convert to lowercase
     String normalizeText(String text) {
       return text
           .toLowerCase()
           .trim()
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .replaceAll(RegExp(r'[^\u0B80-\u0BFF\s]'), ''); // Keep only Tamil chars
+          .replaceAll(RegExp(r'\s+'), ' ') // Replace multiple spaces with single space
+          .replaceAll(RegExp(r'[^\w\s]'), ''); // Keep alphanumeric and spaces only
     }
 
     String normalizedExpected = normalizeText(expected);
