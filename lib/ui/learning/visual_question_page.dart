@@ -1,27 +1,45 @@
-import 'package:flutter/material.dart';
+import 'dart:io' show File;
+
+import 'package:aphora/data/aphora_api_service.dart';
 import 'package:aphora/data/learning/question_data.dart';
+import 'package:aphora/logic/locator.dart';
+import 'package:aphora/logic/speech_service.dart';
 import 'package:aphora/main.dart';
 import 'package:aphora/ui/widgets/clinical_app_bar.dart';
-import 'package:aphora/logic/speech_service.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
+
+/// How the question is presented to the patient.
+///
+/// * [easy]   – image + Tamil text + audio playback. Lowest cognitive load.
+/// * [medium] – image only; the patient has to name the object themselves.
+/// * [hard]   – English-only sentence prompt; no Tamil scaffolding.
+enum VisualQuestionMode { easy, medium, hard }
 
 class VisualQuestionPage extends StatefulWidget {
   final List<QuestionData> questions;
   final String category;
+  final VisualQuestionMode mode;
 
   const VisualQuestionPage({
     super.key,
     required this.questions,
     required this.category,
+    this.mode = VisualQuestionMode.easy,
   });
 
   @override
-  _VisualQuestionPageState createState() => _VisualQuestionPageState();
+  State<VisualQuestionPage> createState() => _VisualQuestionPageState();
 }
 
 class _VisualQuestionPageState extends State<VisualQuestionPage> {
   late int currentIndex;
   late List<bool> answeredQuestions;
   late SpeechService _speechService;
+  final AudioRecorder _recorder = AudioRecorder();
+
   int score = 0;
   String lastSpokenText = "";
   double lastAccuracy = 0.0;
@@ -38,18 +56,24 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
   @override
   void dispose() {
     _speechService.dispose();
+    _recorder.dispose();
     super.dispose();
   }
 
   void _playAudio() async {
     final question = widget.questions[currentIndex];
+    final text = widget.mode == VisualQuestionMode.hard
+        ? question.englishPhrase
+        : question.tamilPhrase;
+    final language =
+        widget.mode == VisualQuestionMode.hard ? 'en-US' : 'ta-IN';
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Playing audio... Check your volume is on.'),
         duration: Duration(seconds: 1),
       ),
     );
-    await _speechService.speakText(question.tamilPhrase, language: 'ta-IN');
+    await _speechService.speakText(text, language: language);
   }
 
   void _startListening() async {
@@ -528,7 +552,6 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Score Display
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
@@ -545,12 +568,8 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Progress Indicator
               _buildProgressIndicator(progress),
               const SizedBox(height: 30),
-
-              // Question Counter
               Text(
                 'Question ${currentIndex + 1} of ${widget.questions.length}',
                 style: TextStyle(
@@ -560,44 +579,45 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Large Image Display
               _buildImageDisplay(question),
-              const SizedBox(height: 40),
-
-              // English Phrase
-              Text(
-                question.englishPhrase,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: DuoColors.text,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-
-              // Tamil Phrase
-              Text(
-                question.tamilPhrase,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  color: DuoColors.blue,
-                ),
-                textAlign: TextAlign.center,
-              ),
+              const SizedBox(height: 24),
+              ..._buildPromptForMode(question),
               const SizedBox(height: 12),
-
-              // Difficulty Badge
               _buildDifficultyBadge(question.difficulty),
-              const SizedBox(height: 40),
-
-              // Audio and Microphone Control Buttons
+              const SizedBox(height: 32),
               _buildControlButtons(),
-              const SizedBox(height: 30),
-
-              // Navigation Buttons
+              const SizedBox(height: 16),
+              if (_isEvaluating)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 10),
+                      Text('Evaluating with Aphora API...'),
+                    ],
+                  ),
+                ),
+              if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.red, fontSize: 13),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              if (_lastResult != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: _buildResultCard(_lastResult!),
+                ),
+              const SizedBox(height: 24),
               _buildNavigationButtons(),
             ],
           ),
@@ -606,32 +626,140 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
     );
   }
 
+  List<Widget> _buildPromptForMode(QuestionData question) {
+    switch (widget.mode) {
+      case VisualQuestionMode.easy:
+        return [
+          Text(
+            question.tamilPhrase,
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: DuoColors.blue,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            question.englishPhrase,
+            style: TextStyle(
+              fontSize: 18,
+              color: DuoColors.textLight,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ];
+      case VisualQuestionMode.medium:
+        return [
+          Text(
+            'Name the object you see',
+            style: TextStyle(
+              fontSize: 18,
+              color: DuoColors.text,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ];
+      case VisualQuestionMode.hard:
+        return [
+          Text(
+            'Say this aloud:',
+            style: TextStyle(
+              fontSize: 16,
+              color: DuoColors.textLight,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            question.englishPhrase,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: DuoColors.text,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ];
+    }
+  }
+
+  Widget _buildResultCard(EvaluationResult result) {
+    final isCorrect = result.isCorrect;
+    final color = isCorrect ? DuoColors.green : DuoColors.red;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isCorrect ? Icons.check_circle : Icons.error_outline,
+                color: color,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isCorrect ? 'Correct!' : 'Needs improvement',
+                style: TextStyle(fontWeight: FontWeight.bold, color: color),
+              ),
+              const Spacer(),
+              Text(
+                '${result.combinedAccuracy.toStringAsFixed(0)}%',
+                style: TextStyle(fontWeight: FontWeight.bold, color: color),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(result.feedbackMessage, style: const TextStyle(fontSize: 13)),
+          if (result.userText != null && result.userText!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'You said: "${result.userText}"',
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildControlButtons() {
+    final showHearButton = widget.mode == VisualQuestionMode.easy;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        // Audio Button - Hear the Tamil pronunciation
-        ElevatedButton.icon(
-          onPressed: _playAudio,
-          icon: const Icon(Icons.volume_up),
-          label: const Text('Hear'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: DuoColors.blue,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+        if (showHearButton)
+          ElevatedButton.icon(
+            onPressed: _isEvaluating ? null : _playAudio,
+            icon: const Icon(Icons.volume_up),
+            label: const Text('Hear'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: DuoColors.blue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
-        ),
-
-        // Microphone Button - Record user's speech
         ElevatedButton.icon(
-          onPressed: _startListening,
-          icon: const Icon(Icons.mic),
-          label: const Text('Record'),
+          onPressed: _isEvaluating ? null : _toggleRecording,
+          icon: Icon(_isRecording ? Icons.stop : Icons.mic),
+          label: Text(_isRecording ? 'Stop' : 'Record'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
+            backgroundColor: _isRecording ? Colors.grey : Colors.red,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             shape: RoundedRectangleBorder(
@@ -668,7 +796,7 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
             ),
           ],
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 12),
         ClipRRect(
           borderRadius: BorderRadius.circular(10),
           child: LinearProgressIndicator(
@@ -693,35 +821,24 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
             blurRadius: 15,
-            offset: Offset(0, 5),
+            offset: const Offset(0, 5),
           ),
         ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
-        child: _buildImageContent(question),
+        child: Image.asset(
+          question.imagePath,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) =>
+              _buildImagePlaceholder(question),
+        ),
       ),
     );
   }
 
-  Widget _buildImageContent(QuestionData question) {
-    // Try to load from assets, if fails show placeholder
-    try {
-      return Image.asset(
-        question.imagePath,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildImagePlaceholder(question);
-        },
-      );
-    } catch (e) {
-      return _buildImagePlaceholder(question);
-    }
-  }
-
   Widget _buildImagePlaceholder(QuestionData question) {
-    // Fallback UI with emoji/icon representation
-    final icons = {
+    const icons = {
       'Water': '💧',
       'Food': '🍽️',
       'Child': '👶',
@@ -779,10 +896,7 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
     return Container(
       color: DuoColors.blue.withOpacity(0.1),
       child: Center(
-        child: Text(
-          icon,
-          style: TextStyle(fontSize: 100),
-        ),
+        child: Text(icon, style: const TextStyle(fontSize: 100)),
       ),
     );
   }
@@ -810,7 +924,7 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
     }
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(20),
@@ -830,32 +944,31 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        // Previous Button
         ElevatedButton.icon(
           onPressed: currentIndex > 0 ? _goToPreviousQuestion : null,
-          icon: Icon(Icons.arrow_back),
-          label: Text('Previous'),
+          icon: const Icon(Icons.arrow_back),
+          label: const Text('Previous'),
           style: ElevatedButton.styleFrom(
             backgroundColor: currentIndex > 0 ? DuoColors.green : Colors.grey,
             foregroundColor: Colors.white,
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
           ),
         ),
-
-        // Next Button
         ElevatedButton.icon(
-          onPressed:
-              currentIndex < widget.questions.length - 1 ? _goToNextQuestion : null,
-          icon: Icon(Icons.arrow_forward),
-          label: Text('Next'),
+          onPressed: currentIndex < widget.questions.length - 1
+              ? _goToNextQuestion
+              : null,
+          icon: const Icon(Icons.arrow_forward),
+          label: const Text('Next'),
           style: ElevatedButton.styleFrom(
-            backgroundColor:
-                currentIndex < widget.questions.length - 1 ? DuoColors.green : Colors.grey,
+            backgroundColor: currentIndex < widget.questions.length - 1
+                ? DuoColors.green
+                : Colors.grey,
             foregroundColor: Colors.white,
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),

@@ -195,6 +195,78 @@ class UserDatabaseService {
     await _db.collection(userCollection).doc(user.uid).update(user.toMap());
   }
 
+  /// Record a single exercise/test attempt and update the patient's
+  /// rolling analytics (sessions, average accuracy, daily activity, etc.).
+  ///
+  /// [accuracy] / [fluency] are 0-100 percentages. [taskId] is added to the
+  /// `completedExercises` set so the same exercise isn't double-counted in
+  /// the legacy progress lists, but every attempt still increments
+  /// `sessionsCompleted` and the daily activity bucket so practice volume
+  /// (not unique tasks) drives the homepage chart.
+  Future<UserModel?> recordExerciseResult({
+    required String taskId,
+    required double accuracy,
+    double? fluency,
+  }) async {
+    final user = currentUser.value;
+    if (user == null) return null;
+
+    final clampedAccuracy = accuracy.clamp(0.0, 100.0).toDouble();
+    final clampedFluency = (fluency ?? clampedAccuracy).clamp(0.0, 100.0).toDouble();
+
+    final priorSessions = user.sessionsCompleted;
+    final newSessions = priorSessions + 1;
+
+    double rollingAverage(double prior, double next) {
+      if (priorSessions <= 0) return next;
+      return ((prior * priorSessions) + next) / newSessions;
+    }
+
+    final newAccuracy = rollingAverage(user.averageAccuracy, clampedAccuracy);
+    final newFluency = rollingAverage(user.averageFluency, clampedFluency);
+    // Progress score is bounded 0-100 and biased toward recent accuracy.
+    final newProgress =
+        ((user.progressScore * 0.7) + (clampedAccuracy * 0.3)).clamp(0.0, 100.0);
+
+    final today = DateTime.now();
+    final key =
+        '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final updatedActivity = Map<String, int>.from(user.dailyActivity);
+    updatedActivity[key] = (updatedActivity[key] ?? 0) + 1;
+
+    final updatedExercises = List<String>.from(user.completedExercises);
+    if (!updatedExercises.contains(taskId)) {
+      updatedExercises.add(taskId);
+    }
+
+    final updated = UserModel(
+      uid: user.uid,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      age: user.age,
+      gender: user.gender,
+      phoneNumber: user.phoneNumber,
+      languagePreference: user.languagePreference,
+      aphasiaType: user.aphasiaType,
+      severityLevel: user.severityLevel,
+      goals: user.goals,
+      sessionsCompleted: newSessions,
+      progressScore: newProgress,
+      completedExercises: updatedExercises,
+      averageAccuracy: newAccuracy,
+      averageFluency: newFluency,
+      dailyActivity: updatedActivity,
+      linkedCaregiverId: user.linkedCaregiverId,
+      createdAt: user.createdAt,
+      updatedAt: DateTime.now(),
+    );
+
+    await _db.collection(userCollection).doc(user.uid).update(updated.toMap());
+    currentUser.value = updated;
+    return updated;
+  }
+
   /// =========================
   /// 🚪 LOGOUT
   /// =========================

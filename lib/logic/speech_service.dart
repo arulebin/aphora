@@ -1,7 +1,10 @@
-import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:flutter_tts/flutter_tts.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 class SpeechService {
   late stt.SpeechToText _speechToText;
@@ -258,6 +261,63 @@ class SpeechService {
     }
   }
 
+  /// Synthesize [text] to a WAV file on disk and return its path.
+  ///
+  /// Used by the assessment flow to produce a reference audio clip on
+  /// the fly so we don't need a pre-recorded reference for every word
+  /// in the dataset. Returns `null` on platforms where file synthesis
+  /// isn't supported (web, or if the TTS engine refuses).
+  Future<String?> synthesizeToFile(
+    String text, {
+    String language = 'ta-IN',
+  }) async {
+    if (text.trim().isEmpty) return null;
+    if (kIsWeb) return null;
+
+    try {
+      await _flutterTts.setLanguage(language);
+      await _flutterTts.setSpeechRate(0.5);
+      await _flutterTts.setPitch(1.0);
+      await _flutterTts.setVolume(1.0);
+
+      final fileName =
+          'tts_ref_${DateTime.now().millisecondsSinceEpoch}.wav';
+
+      // Android: write into the app documents dir; flutter_tts resolves
+      // relative names against that directory.
+      // iOS: must use an absolute path inside the app sandbox.
+      String? targetPath;
+      try {
+        if (Platform.isIOS) {
+          final dir = await getApplicationDocumentsDirectory();
+          targetPath = '${dir.path}/$fileName';
+        }
+      } catch (_) {
+        targetPath = null;
+      }
+
+      final result = await _flutterTts.synthesizeToFile(
+        text,
+        targetPath ?? fileName,
+      );
+
+      if (result == 1) {
+        if (targetPath != null) return targetPath;
+        // Resolve the Android documents dir to give back a real path.
+        try {
+          final dir = await getApplicationDocumentsDirectory();
+          return '${dir.path}/$fileName';
+        } catch (_) {
+          return fileName;
+        }
+      }
+      return null;
+    } catch (e) {
+      print('synthesizeToFile failed: $e');
+      return null;
+    }
+  }
+
   Future<void> stopListening() async {
     if (_isListening) {
       try {
@@ -285,7 +345,13 @@ class SpeechService {
 
 /// Evaluates similarity between two texts
 class TextEvaluator {
-  /// Calculate similarity percentage between expected and actual text
+  /// Calculate similarity percentage between expected and actual text.
+  ///
+  /// Earlier versions of this method kept only Tamil characters via
+  /// `[^\u0B80-\u0BFF\s]`, which silently stripped English-only inputs
+  /// to empty strings \u2014 causing every recording to score 100%
+  /// regardless of what was said. We now keep Tamil letters, ASCII
+  /// letters, and digits so both languages score honestly.
   static double calculateSimilarity(String expected, String actual) {
     // Normalize texts - Remove extra spaces and convert to lowercase
     String normalizeText(String text) {
@@ -299,18 +365,25 @@ class TextEvaluator {
     String normalizedExpected = normalizeText(expected);
     String normalizedActual = normalizeText(actual);
 
-    // If texts match exactly
+    // If both inputs normalize to empty (e.g. silence vs silence) we
+    // can't meaningfully compare them \u2014 treat as zero rather than 100.
+    if (normalizedExpected.isEmpty && normalizedActual.isEmpty) {
+      return 0.0;
+    }
+    if (normalizedExpected.isEmpty || normalizedActual.isEmpty) {
+      return 0.0;
+    }
+
     if (normalizedExpected == normalizedActual) {
       return 100.0;
     }
 
-    // Calculate Levenshtein distance
     int distance = _levenshteinDistance(normalizedExpected, normalizedActual);
     int maxLength = normalizedExpected.length > normalizedActual.length
         ? normalizedExpected.length
         : normalizedActual.length;
 
-    if (maxLength == 0) return 100.0;
+    if (maxLength == 0) return 0.0;
 
     double similarity = ((maxLength - distance) / maxLength) * 100;
     return similarity.clamp(0, 100);

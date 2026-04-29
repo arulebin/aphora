@@ -10,7 +10,7 @@ class QuestionData {
   final String difficulty;
   final String? description;
 
-  QuestionData({
+  const QuestionData({
     required this.id,
     required this.category,
     required this.englishPhrase,
