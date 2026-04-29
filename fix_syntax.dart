@@ -24,6 +24,6 @@ void main() {
     content = content.replaceAll(RegExp(r'\),\s*body:'), 'body:');
 
     file.writeAsStringSync(content);
-    print('Fixed \');
+    print('Fixed $path');
   }
 }
