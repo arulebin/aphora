@@ -119,7 +119,7 @@ class _TherapistPageState extends State<TherapistPage> {
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       patientId: user.uid,
       patientName: user.name,
-      therapistId: _linkedTherapist!.id,
+      therapistId: _linkedTherapist!.code,
       dateTime: dateTime,
       status: 'pending',
     );

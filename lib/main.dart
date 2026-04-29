@@ -4,6 +4,7 @@ import 'package:aphora/ui/assessment/pre_assessment_test_page.dart';
 import 'package:aphora/ui/auth/language_selection_page.dart';
 import 'package:aphora/ui/auth/login_page.dart';
 import 'package:aphora/ui/auth/signup_page.dart';
+import 'package:aphora/ui/auth/therapist_login_page.dart';
 import 'package:aphora/ui/auth/user_info_page.dart';
 import 'package:aphora/ui/home/main_navigation.dart';
 import 'package:aphora/ui/learning/learning_session_page.dart';
@@ -106,6 +107,10 @@ GoRouter _createRouter(String initialLocation) {
             preAssessmentScore: score,
           );
         },
+      ),
+      GoRoute(
+        path: '/therapist',
+        builder: (context, state) => const TherapistLoginPage(),
       ),
       GoRoute(
         path: '/therapist_dashboard',

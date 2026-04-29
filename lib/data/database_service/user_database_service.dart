@@ -33,6 +33,7 @@ class UserDatabaseService {
     required String gender,
     required String aphasiaType,
     required String severityLevel,
+    String role = 'patient',
   }) async {
     try {
       final email = _phoneToEmail(phone);
@@ -70,7 +71,7 @@ class UserDatabaseService {
         name: name,
         email: email,
         phoneNumber: phone,
-        role: "patient",
+        role: role,
         age: age,
         gender: gender,
         languagePreference: "Tamil",

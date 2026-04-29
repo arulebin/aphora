@@ -52,7 +52,7 @@ class _LearningSessionPageState extends State<LearningSessionPage> {
     {'tamil': 'கதை', 'english': 'Story'},
     {'tamil': 'பெயர்', 'english': 'Name'},
     {'tamil': 'நகை', 'english': 'Jewelry'},
-    {'tamil': 'பாल்', 'english': 'Ball'},
+    {'tamil': 'பால்', 'english': 'Ball'},
   ];
 
   final List<Map<String, dynamic>> _tamilSentences = [
@@ -147,13 +147,17 @@ class _LearningSessionPageState extends State<LearningSessionPage> {
 
   void _evaluateAnswer() {
     if (_items.isEmpty) return;
-    
-    final item = _items[_currentItemIndex];
-    final targetTamil = item['tamil'].toString().toLowerCase().trim();
-    final recognizedLower = _recognizedText.toLowerCase().trim();
 
-    // Simple matching (can be enhanced with similarity calculation)
-    _isCorrect = targetTamil == recognizedLower;
+    final item = _items[_currentItemIndex];
+    if (_recognizedText.trim().isEmpty) {
+      _isCorrect = false;
+      return;
+    }
+    final accuracy = TextEvaluator.calculateSimilarity(
+      item['tamil'].toString(),
+      _recognizedText,
+    );
+    _isCorrect = accuracy >= 70;
   }
 
   void _nextItem() {

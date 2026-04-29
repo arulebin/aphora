@@ -326,6 +326,7 @@ class _UserInfoPageState extends State<UserInfoPage> {
                                   gender: gender,
                                   aphasiaType: aphasiaType,
                                   severityLevel: severity,
+                                  role: role,
                                 );
 
                             if (user != null) {
