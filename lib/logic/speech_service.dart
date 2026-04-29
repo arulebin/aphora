@@ -1,5 +1,6 @@
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
 
 class SpeechService {
@@ -55,8 +56,15 @@ class SpeechService {
     try {
       bool available = await _speechToText.initialize(
         onError: (error) {
+          // Browser STT routes audio to Google's servers; ad-blockers, lack of
+          // HTTPS, or DNS filtering surface as `network` errors here. Complete
+          // gracefully with an empty result instead of completeError — the
+          // latter races the timeout chain and bubbles as an Uncaught Error.
           print('Speech Recognition Error: $error');
-          _listeningCompleter?.completeError(error);
+          if (_isListening && !(_listeningCompleter?.isCompleted ?? false)) {
+            _isListening = false;
+            _listeningCompleter?.complete('');
+          }
         },
         onStatus: (status) {
           print('Status: $status');
@@ -128,17 +136,20 @@ class SpeechService {
       
       print('Speech synthesis result code: $result');
       print('Result meaning: ${_interpretResultCode(result)}');
-      
-      if (result == 1) {
+
+      // On web, flutter_tts.speak() returns null (the browser SpeechSynthesis
+      // API is fire-and-forget). Treat null as success on web. Only -1 is a
+      // real failure on any platform.
+      if (result == 1 || (kIsWeb && result == null)) {
         print('✅ SUCCESS: Speaking started for: "$text"');
-        print('═════════════════════════════════════════════');
       } else if (result == 0) {
-        print('⚠️  WARNING: Speech synthesis returned 0 (may still be playing)');
-        print('═════════════════════════════════════════════');
-      } else {
+        print('⚠️  Speech synthesis returned 0 (may still be playing)');
+      } else if (result == -1) {
         print('❌ ERROR: Failed to start speaking. Result code: $result');
-        print('═════════════════════════════════════════════');
+      } else {
+        print('Speech synthesis returned: $result (treating as success)');
       }
+      print('═════════════════════════════════════════════');
     } catch (e) {
       print('❌ EXCEPTION during speakText: $e');
       print('Stack trace:');

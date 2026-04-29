@@ -13,6 +13,7 @@ import 'package:aphora/ui/therapist/TherapistDashboardPage.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -447,6 +448,10 @@ class MyApp extends StatelessWidget {
       routerConfig: _createRouter(initialLocation),
       theme: ThemeData(
         fontFamily: 'Nunito',
+        // Falls back to a Tamil-supporting font for glyphs Nunito lacks
+        // (e.g. தண்ணீர்). Avoids the "Could not find a set of Noto fonts"
+        // warning when the engine's on-demand Noto download is blocked.
+        fontFamilyFallback: [GoogleFonts.notoSansTamil().fontFamily!],
         scaffoldBackgroundColor: DuoColors.surface,
         colorScheme: ColorScheme.fromSeed(seedColor: DuoColors.green),
         useMaterial3: true,
