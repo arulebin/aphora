@@ -1,11 +1,10 @@
-import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/services.dart' show rootBundle;
-import 'package:http/http.dart' as http;
-import 'package:record/record.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:aphora/data/aphora_api_service.dart';
+import 'package:aphora/logic/locator.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
 class PhoneticTestPage extends StatefulWidget {
   const PhoneticTestPage({super.key});
@@ -15,24 +14,30 @@ class PhoneticTestPage extends StatefulWidget {
 }
 
 class _PhoneticTestPageState extends State<PhoneticTestPage> {
-  final List<Map<String, String>> _tasks = [
+  final List<Map<String, String>> _tasks = const [
     {
+      'id': 'phonetic_vannakam',
       'title': 'Vanakkam',
       'titleTamil': 'வணக்கம்',
       'subtitle': 'Greeting in Tamil',
       'asset': 'assets/vannakam.wav',
+      'referenceText': 'vanakkam',
     },
     {
+      'id': 'phonetic_saptirgala',
       'title': 'Saptirgala',
       'titleTamil': 'சாப்பிட்டீர்களா',
       'subtitle': 'Have you eaten?',
       'asset': 'assets/saptiya.wav',
+      'referenceText': 'saptirgala',
     },
     {
+      'id': 'phonetic_epadi',
       'title': 'Epadi irukkindrirgal',
       'titleTamil': 'எப்படி இருக்கிறீர்கள்',
       'subtitle': 'How are you?',
       'asset': 'assets/epdi.wav',
+      'referenceText': 'epadi irukkindrirgal',
     },
   ];
 
@@ -77,9 +82,11 @@ class _PhoneticTestPageState extends State<PhoneticTestPage> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => PhoneticTaskDetailPage(
+                      taskId: task['id']!,
                       title: task['titleTamil'] ?? task['title']!,
                       subtitle: task['subtitle']!,
                       assetPath: task['asset']!,
+                      referenceText: task['referenceText'],
                     ),
                   ),
                 );
@@ -93,15 +100,19 @@ class _PhoneticTestPageState extends State<PhoneticTestPage> {
 }
 
 class PhoneticTaskDetailPage extends StatefulWidget {
+  final String taskId;
   final String title;
   final String subtitle;
   final String assetPath;
+  final String? referenceText;
 
   const PhoneticTaskDetailPage({
     super.key,
+    required this.taskId,
     required this.title,
     required this.subtitle,
     required this.assetPath,
+    this.referenceText,
   });
 
   @override
@@ -113,9 +124,9 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isRecording = false;
   bool _isPlaying = false;
-  String? _recordedFilePath;
-  bool _isTesting = false;
-  String _resultMessage = '';
+  bool _isEvaluating = false;
+  EvaluationResult? _result;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -146,7 +157,7 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
         );
       }
     } catch (e) {
-      print('Error playing audio: $e');
+      debugPrint('Error playing audio: $e');
     }
   }
 
@@ -168,8 +179,8 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
 
         setState(() {
           _isRecording = true;
-          _recordedFilePath = null;
-          _resultMessage = '';
+          _result = null;
+          _errorMessage = null;
         });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -177,7 +188,7 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
         );
       }
     } catch (e) {
-      print('Error starting record: $e');
+      debugPrint('Error starting record: $e');
     }
   }
 
@@ -186,77 +197,56 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
       final path = await _audioRecorder.stop();
       setState(() {
         _isRecording = false;
-        _recordedFilePath = path;
       });
 
       if (path != null) {
-        _uploadAndCompare(path);
+        await _evaluateRecording(path);
       }
     } catch (e) {
-      print('Error stopping record: $e');
+      debugPrint('Error stopping record: $e');
     }
   }
 
-  Future<void> _uploadAndCompare(String userAudioPath) async {
+  Future<void> _evaluateRecording(String userAudioPath) async {
     setState(() {
-      _isTesting = true;
-      _resultMessage = 'Analyzing your pronunciation...';
+      _isEvaluating = true;
+      _errorMessage = null;
     });
 
     try {
-      final host = Platform.isAndroid ? "10.0.2.2" : "127.0.0.1";
-      var uri = Uri.parse("http://$host:8000/compare-audio/");
-      var request = http.MultipartRequest('POST', uri);
-
-      // Load reference background API file
-      final byteData = await rootBundle.load(widget.assetPath);
-      final refBytes = byteData.buffer.asUint8List();
-
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          'audio_ref',
-          refBytes,
-          filename: 'ref.wav',
-        ),
+      final result = await Locator.aphoraApiService.evaluateAgainstAsset(
+        referenceAssetPath: widget.assetPath,
+        userAudioPath: userAudioPath,
+        referenceText: widget.referenceText,
       );
 
-      // User recorded audio
-      if (kIsWeb) {
-        final audioResponse = await http.get(Uri.parse(userAudioPath));
-        request.files.add(
-          http.MultipartFile.fromBytes(
-            'audio_user',
-            audioResponse.bodyBytes,
-            filename: 'user_audio_${DateTime.now().millisecondsSinceEpoch}.wav',
-          ),
-        );
-      } else {
-        request.files.add(
-          await http.MultipartFile.fromPath('audio_user', userAudioPath),
-        );
-      }
-
-      var response = await request.send();
-      var responseData = await response.stream.bytesToString();
-
-      if (response.statusCode == 200 || response.statusCode == 422) {
-        setState(() {
-          _resultMessage = "Result: $responseData";
-        });
-      } else {
-        setState(() {
-          _resultMessage =
-              "Error: API returned status ${response.statusCode}\n$responseData";
-        });
-      }
-    } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _resultMessage = "Failed to evaluate: $e";
+        _result = result;
+      });
+
+      // Persist progress for the logged-in patient.
+      await Locator.userDatabaseService.recordExerciseResult(
+        taskId: widget.taskId,
+        accuracy: result.combinedAccuracy,
+        fluency: result.audioSimilarity * 100,
+      );
+    } on AphoraApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.message;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Failed to evaluate: $e';
       });
     } finally {
-      setState(() {
-        _isTesting = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isEvaluating = false;
+        });
+      }
     }
   }
 
@@ -309,32 +299,13 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
             ),
             const Spacer(),
 
-            // Result Display
-            if (_resultMessage.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _isTesting
-                      ? Colors.blue.shade50
-                      : Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _isTesting ? Colors.blue : Colors.green,
-                  ),
-                ),
-                child: Text(
-                  _resultMessage,
-                  style: const TextStyle(fontSize: 16),
-                  textAlign: TextAlign.center,
-                ),
-              ),
+            _buildResultPanel(),
 
             const SizedBox(height: 40),
 
-            // Record Button
             GestureDetector(
-              onLongPressStart: (_) => _startRecording(),
-              onLongPressEnd: (_) => _stopRecording(),
+              onLongPressStart: _isEvaluating ? null : (_) => _startRecording(),
+              onLongPressEnd: _isEvaluating ? null : (_) => _stopRecording(),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 height: _isRecording ? 120 : 100,
@@ -360,14 +331,116 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
             ),
             const SizedBox(height: 20),
             Text(
-              _isRecording
-                  ? "Recording... Release to submit"
-                  : "Hold to Record",
+              _isEvaluating
+                  ? "Analyzing your pronunciation..."
+                  : _isRecording
+                      ? "Recording... Release to submit"
+                      : "Hold to Record",
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 40),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildResultPanel() {
+    if (_isEvaluating) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.blue),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Text('Analyzing your pronunciation...'),
+          ],
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.orange),
+        ),
+        child: Text(
+          _errorMessage!,
+          style: const TextStyle(fontSize: 14, color: Colors.deepOrange),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    final result = _result;
+    if (result == null) return const SizedBox.shrink();
+
+    final isCorrect = result.isCorrect;
+    final color = isCorrect ? Colors.green : Colors.red;
+    final bg = isCorrect ? Colors.green.shade50 : Colors.red.shade50;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isCorrect ? Icons.check_circle : Icons.error_outline,
+                color: color,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isCorrect ? 'Great job!' : 'Try again',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: color,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${result.combinedAccuracy.toStringAsFixed(0)}%',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            result.feedbackMessage,
+            style: const TextStyle(fontSize: 14),
+          ),
+          if (result.userText != null && result.userText!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'You said: "${result.userText}"',
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          ],
+        ],
       ),
     );
   }

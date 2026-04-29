@@ -1,3 +1,4 @@
+import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:flutter/material.dart';
 
@@ -162,7 +163,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               const SizedBox(height: 16),
-              _buildActivityChartCard(),
+              _buildActivityChartCard(user),
             ],
           ),
         ),
@@ -224,7 +225,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildProgressBarsCard(user) {
+  Widget _buildProgressBarsCard(UserModel? user) {
     final accuracy = user?.averageAccuracy ?? 0.0;
     final fluency = user?.averageFluency ?? 0.0;
 
@@ -305,9 +306,21 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildActivityChartCard() {
+  Widget _buildActivityChartCard(UserModel? user) {
+    final counts = user?.recentActivityCounts(days: 7) ?? List.filled(7, 0);
+    final maxCount = counts.fold<int>(0, (a, b) => a > b ? a : b);
+    final hasActivity = maxCount > 0;
+
+    final now = DateTime.now();
+    const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final labels = <String>[];
+    for (int i = 6; i >= 0; i--) {
+      final d = now.subtract(Duration(days: i));
+      // DateTime.weekday is 1=Mon..7=Sun
+      labels.add(dayLabels[d.weekday - 1]);
+    }
+
     return Container(
-      height: 200,
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -322,35 +335,73 @@ class _HomePageState extends State<HomePage> {
         ],
         border: Border.all(color: const Color(0xFFF1F5F9)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildBar("Mon", 0.4),
-          _buildBar("Tue", 0.7),
-          _buildBar("Wed", 0.5),
-          _buildBar("Thu", 0.9),
-          _buildBar("Fri", 0.6),
-          _buildBar("Sat", 0.3),
-          _buildBar("Sun", 0.8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Sessions per day',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+              Text(
+                hasActivity
+                    ? '${counts.fold<int>(0, (a, b) => a + b)} this week'
+                    : 'No sessions yet',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 140,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(7, (i) {
+                final ratio = hasActivity ? counts[i] / maxCount : 0.0;
+                return _buildBar(labels[i], ratio, counts[i]);
+              }),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildBar(String day, double heightRatio) {
+  Widget _buildBar(String day, double heightRatio, int count) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
+        Text(
+          count > 0 ? '$count' : '',
+          style: const TextStyle(
+            fontSize: 11,
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
         Container(
           width: 24,
-          height: 120 * heightRatio,
+          height: 100 * heightRatio.clamp(0.0, 1.0),
           decoration: BoxDecoration(
-            color: const Color(0xFF1E88E5),
+            color: heightRatio > 0
+                ? const Color(0xFF1E88E5)
+                : const Color(0xFFE2E8F0),
             borderRadius: BorderRadius.circular(6),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         Text(
           day,
           style: const TextStyle(

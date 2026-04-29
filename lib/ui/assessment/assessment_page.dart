@@ -2,14 +2,14 @@ import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:aphora/ui/profile/settings_page.dart';
-import 'package:aphora/ui/learning/task_list_page.dart';
 import 'package:aphora/ui/profile/profile_page.dart';
 import 'package:aphora/ui/therapist/patient_bookings_page.dart';
 import 'package:aphora/ui/video_call/videocall_page.dart';
 import 'package:aphora/ui/assessment/pre_assessment_test_page.dart';
 import 'package:aphora/ui/assessment/gamified_image_selection_page.dart';
+import 'package:aphora/ui/learning/phonetic_test_page.dart';
 import 'package:aphora/ui/learning/visual_question_page.dart';
-import 'package:aphora/data/learning/question_data.dart';
+import 'package:aphora/data/learning/question_data.dart' as qd;
 import 'package:aphora/data/models/booking_model.dart';
 import 'package:aphora/data/models/therapist_model.dart';
 import 'package:flutter/material.dart';
@@ -203,17 +203,18 @@ class _AssessmentPageState extends State<AssessmentPage> {
               ),
               const SizedBox(height: 16),
 
-              // Therapy Card
+              // Phonetic Sound Test Card – speech evaluation against
+              // pre-recorded Tamil reference audio (Aphora API).
               _buildActionCard(
-                title: "Start Therapy",
-                subtitle: "Begin your personalized speech session",
-                icon: Icons.play_circle_outline,
-                color: const Color(0xFF1E88E5),
+                title: "Phonetic Sound Test",
+                subtitle: "Practice Tamil pronunciation against reference audio",
+                icon: Icons.record_voice_over_outlined,
+                color: const Color(0xFF6366F1),
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const TaskListPage(category: "Pronunciation"),
+                      builder: (context) => const PhoneticTestPage(),
                     ),
                   );
                 },
@@ -226,59 +227,45 @@ class _AssessmentPageState extends State<AssessmentPage> {
               ),
               const SizedBox(height: 16),
 
-              // Easy Level - Image with name in Tamil + Audio
+              // Easy: image + Tamil + English + audio playback.
               _buildDifficultyLevelCard(
                 title: "Easy Level",
-                subtitle: "Image + Tamil name + Audio (Like Word Page)",
+                subtitle: "Image + Tamil name + Audio playback",
                 color: const Color(0xFF10B981),
                 icon: Icons.image_outlined,
-                onTap: () {
-                  // Get all 50 questions and navigate to VisualQuestionPage
-                  final allQuestions = getAllQuestions();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => VisualQuestionPage(
-                        questions: allQuestions,
-                        category: "Easy Level - Visual Learning",
-                      ),
-                    ),
-                  );
-                },
+                onTap: () => _startVisualQuestions(
+                  difficulty: 'Easy',
+                  mode: VisualQuestionMode.easy,
+                  title: 'Easy Level – Visual Learning',
+                ),
               ),
               const SizedBox(height: 12),
 
-              // Medium Level - Image only (User must name it)
+              // Medium: image only — patient must name it.
               _buildDifficultyLevelCard(
                 title: "Medium Level",
-                subtitle: "Image only - User must name the object",
+                subtitle: "Image only – name the object yourself",
                 color: const Color(0xFFF59E0B),
                 icon: Icons.image_search_outlined,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const TaskListPage(category: "Word Naming"),
-                    ),
-                  );
-                },
+                onTap: () => _startVisualQuestions(
+                  difficulty: 'Medium',
+                  mode: VisualQuestionMode.medium,
+                  title: 'Medium Level – Word Naming',
+                ),
               ),
               const SizedBox(height: 12),
 
-              // Hard Level - Conversation Mode
+              // Hard: full English sentence prompt — repeat aloud.
               _buildDifficultyLevelCard(
                 title: "Hard Level",
-                subtitle: "Conversation Mode - Interactive dialogue",
+                subtitle: "Read a sentence aloud – conversation practice",
                 color: const Color(0xFFEF4444),
                 icon: Icons.chat_bubble_outline,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const TaskListPage(category: "Conversation"),
-                    ),
-                  );
-                },
+                onTap: () => _startVisualQuestions(
+                  difficulty: 'Hard',
+                  mode: VisualQuestionMode.hard,
+                  title: 'Hard Level – Conversation',
+                ),
               ),
               
               const SizedBox(height: 32),
@@ -598,16 +585,82 @@ class _AssessmentPageState extends State<AssessmentPage> {
     );
   }
 
-  List<QuestionData> getAllQuestions() {
-    // Return all 50 questions from all categories
-    return [
-      ...getQuestionsByCategory('Basic Needs'),
-      ...getQuestionsByCategory('People'),
-      ...getQuestionsByCategory('Actions'),
-      ...getQuestionsByCategory('Body Parts'),
-      ...getQuestionsByCategory('Common Objects'),
-      ...getQuestionsByCategory('Feelings'),
-    ];
+  /// Hard-level conversation prompts. The question_data dataset doesn't
+  /// include any questions tagged 'Hard', so we synthesize a small set
+  /// of sentence-style prompts here that reuse familiar imagery.
+  static const List<qd.QuestionData> _hardSentencePrompts = <qd.QuestionData>[
+    qd.QuestionData(
+      id: 1001,
+      category: 'Conversation',
+      englishPhrase: 'Hello, how are you today?',
+      tamilPhrase: 'வணக்கம், இன்று எப்படி இருக்கிறீர்கள்?',
+      imagePath: 'assets/images/questions/26_hello.png',
+      difficulty: 'Hard',
+    ),
+    qd.QuestionData(
+      id: 1002,
+      category: 'Conversation',
+      englishPhrase: 'Can you please bring me some water?',
+      tamilPhrase: 'எனக்கு கொஞ்சம் தண்ணீர் கொண்டுவர முடியுமா?',
+      imagePath: 'assets/images/questions/1_water.png',
+      difficulty: 'Hard',
+    ),
+    qd.QuestionData(
+      id: 1003,
+      category: 'Conversation',
+      englishPhrase: 'I would like to eat some food.',
+      tamilPhrase: 'எனக்கு கொஞ்சம் சாப்பாடு வேண்டும்.',
+      imagePath: 'assets/images/questions/2_food.png',
+      difficulty: 'Hard',
+    ),
+    qd.QuestionData(
+      id: 1004,
+      category: 'Conversation',
+      englishPhrase: 'I need to take my medicine now.',
+      tamilPhrase: 'நான் இப்போது மருந்து சாப்பிட வேண்டும்.',
+      imagePath: 'assets/images/questions/5_medicine.png',
+      difficulty: 'Hard',
+    ),
+    qd.QuestionData(
+      id: 1005,
+      category: 'Conversation',
+      englishPhrase: 'Thank you for helping me today.',
+      tamilPhrase: 'இன்று எனக்கு உதவியதற்கு நன்றி.',
+      imagePath: 'assets/images/questions/27_thankyou.png',
+      difficulty: 'Hard',
+    ),
+  ];
+
+  void _startVisualQuestions({
+    required String difficulty,
+    required VisualQuestionMode mode,
+    required String title,
+  }) {
+    final List<qd.QuestionData> questions;
+    if (difficulty == 'Hard') {
+      questions = _hardSentencePrompts;
+    } else {
+      questions =
+          qd.allQuestions.where((q) => q.difficulty == difficulty).toList();
+    }
+
+    if (questions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No $difficulty questions available yet.')),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VisualQuestionPage(
+          questions: questions,
+          category: title,
+          mode: mode,
+        ),
+      ),
+    );
   }
 }
 

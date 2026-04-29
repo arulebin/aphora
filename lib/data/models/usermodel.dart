@@ -22,6 +22,24 @@ class UserModel {
   final double averageAccuracy;
   final double averageFluency;
 
+  /// Per-day exercise count, keyed by ISO date (yyyy-MM-dd).
+  /// Used to render the homepage's Recent Activity chart.
+  final Map<String, int> dailyActivity;
+
+  /// Returns the activity counts for the most recent [days] days, oldest first.
+  /// The list always has [days] entries; missing days fill with 0.
+  List<int> recentActivityCounts({int days = 7}) {
+    final now = DateTime.now();
+    final result = <int>[];
+    for (int i = days - 1; i >= 0; i--) {
+      final d = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
+      final key =
+          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      result.add(dailyActivity[key] ?? 0);
+    }
+    return result;
+  }
+
   // Caregiver/Therapist linkage
   String? linkedCaregiverId;
   // Metadata
@@ -45,10 +63,11 @@ class UserModel {
     required this.completedExercises,
     this.averageAccuracy = 0.0,
     this.averageFluency = 0.0,
+    Map<String, int>? dailyActivity,
     this.linkedCaregiverId,
     required this.createdAt,
     required this.updatedAt,
-  });
+  }) : dailyActivity = dailyActivity ?? <String, int>{};
 
   // Convert to Map (for Firebase)
   Map<String, dynamic> toMap() {
@@ -69,6 +88,7 @@ class UserModel {
       'completedExercises': completedExercises,
       'averageAccuracy': averageAccuracy,
       'averageFluency': averageFluency,
+      'dailyActivity': dailyActivity,
       'linkedCaregiverId': linkedCaregiverId,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -94,6 +114,10 @@ class UserModel {
       completedExercises: List<String>.from(map['completedExercises'] ?? []),
       averageAccuracy: ((map['averageAccuracy'] ?? 0) as num).toDouble(),
       averageFluency: ((map['averageFluency'] ?? 0) as num).toDouble(),
+      dailyActivity: (map['dailyActivity'] as Map?)?.map(
+            (key, value) => MapEntry(key.toString(), (value as num).toInt()),
+          ) ??
+          <String, int>{},
       linkedCaregiverId: map['linkedCaregiverId'],
       createdAt: DateTime.parse(
         map['createdAt'] ?? DateTime.now().toIso8601String(),
@@ -121,6 +145,7 @@ class UserModel {
     List<String>? completedExercises,
     double? averageAccuracy,
     double? averageFluency,
+    Map<String, int>? dailyActivity,
     String? linkedCaregiverId,
     DateTime? updatedAt,
   }) {
@@ -141,6 +166,7 @@ class UserModel {
       completedExercises: completedExercises ?? this.completedExercises,
       averageAccuracy: averageAccuracy ?? this.averageAccuracy,
       averageFluency: averageFluency ?? this.averageFluency,
+      dailyActivity: dailyActivity ?? this.dailyActivity,
       linkedCaregiverId: linkedCaregiverId ?? this.linkedCaregiverId,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
