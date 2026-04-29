@@ -7,6 +7,7 @@ import 'package:aphora/ui/profile/profile_page.dart';
 import 'package:aphora/ui/therapist/patient_bookings_page.dart';
 import 'package:aphora/ui/video_call/videocall_page.dart';
 import 'package:aphora/ui/assessment/pre_assessment_test_page.dart';
+import 'package:aphora/ui/assessment/gamified_image_selection_page.dart';
 import 'package:aphora/ui/learning/visual_question_page.dart';
 import 'package:aphora/data/learning/question_data.dart';
 import 'package:aphora/data/models/booking_model.dart';
@@ -168,6 +169,22 @@ class _AssessmentPageState extends State<AssessmentPage> {
                 style: TextStyle(color: Color(0xFF64748B), fontSize: 15),
               ),
               const SizedBox(height: 24),
+
+              _buildActionCard(
+                title: "Picture Match Test",
+                subtitle: "Match words to images to test your vocabulary",
+                icon: Icons.games_outlined,
+                color: const Color(0xFF8B5CF6),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const GamifiedImageSelectionPage(),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
 
               // Pre-Assessment Card
               _buildActionCard(

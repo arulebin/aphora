@@ -19,13 +19,16 @@ class SpeechService {
 
   Future<void> _initializeTTS() async {
     try {
-      // Initialize TTS engine - try Google TTS first, then fallback
+      // Initialize TTS engine - rely on default system TTS to prevent DeadObjectException
+      // on certain Android devices that fail when forcing 'com.google.android.tts'
+      /*
       try {
         await _flutterTts.setEngine('com.google.android.tts');
         print('TTS Engine set to: com.google.android.tts');
       } catch (e) {
         print('Google TTS not available: $e, using default engine');
       }
+      */
       
       // Set default language
       await _flutterTts.setLanguage('ta-IN');
