@@ -21,7 +21,7 @@ void main() async {
   Locator.setUpServices();
 
   final sessionRestored = await Locator.userDatabaseService.restoreSession();
-  String initialLocation = '/';
+  String initialLocation = '/login';
   if (sessionRestored) {
     if (Locator.userDatabaseService.currentUser.value != null) {
       initialLocation = '/home';
