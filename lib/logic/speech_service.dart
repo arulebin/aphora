@@ -385,6 +385,8 @@ class PronunciationAnalysis {
 /// preceding letter rather than independent characters.
 class TextEvaluator {
   /// Backwards-compatible: returns a 0-100 similarity score only.
+  /// Delegates to [analyze] so the legacy entry point benefits from
+  /// the grapheme-aware comparison too.
   static double calculateSimilarity(String expected, String actual) {
     return analyze(expected, actual).similarity;
   }

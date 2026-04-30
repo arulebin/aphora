@@ -2,14 +2,16 @@ import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:aphora/ui/profile/settings_page.dart';
+import 'package:aphora/ui/learning/task_list_page.dart';
+import 'package:aphora/ui/learning/medium_level_page.dart';
+import 'package:aphora/ui/learning/hard_level_page.dart';
 import 'package:aphora/ui/profile/profile_page.dart';
 import 'package:aphora/ui/therapist/patient_bookings_page.dart';
 import 'package:aphora/ui/video_call/videocall_page.dart';
 import 'package:aphora/ui/assessment/pre_assessment_test_page.dart';
-import 'package:aphora/ui/assessment/gamified_image_selection_page.dart';
-import 'package:aphora/ui/learning/phonetic_test_page.dart';
+import 'package:aphora/ui/assessment/gamified_image_selection_page.dart' hide allQuestions;
 import 'package:aphora/ui/learning/visual_question_page.dart';
-import 'package:aphora/data/learning/question_data.dart' as qd;
+import 'package:aphora/data/learning/question_data.dart' show QuestionData, allQuestions, getQuestionsByCategory;
 import 'package:aphora/data/models/booking_model.dart';
 import 'package:aphora/data/models/therapist_model.dart';
 import 'package:flutter/material.dart';
@@ -247,25 +249,33 @@ class _AssessmentPageState extends State<AssessmentPage> {
                 subtitle: "Image only – name the object yourself",
                 color: const Color(0xFFF59E0B),
                 icon: Icons.image_search_outlined,
-                onTap: () => _startVisualQuestions(
-                  difficulty: 'Medium',
-                  mode: VisualQuestionMode.medium,
-                  title: 'Medium Level – Word Naming',
-                ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => MediumLevelPage(
+                        questions: allQuestions,
+                      ),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 12),
 
-              // Hard: full English sentence prompt — repeat aloud.
+              // Hard Level - Sentence based learning
               _buildDifficultyLevelCard(
                 title: "Hard Level",
-                subtitle: "Read a sentence aloud – conversation practice",
+                subtitle: "Sentence Learning - Speak the sentences",
                 color: const Color(0xFFEF4444),
                 icon: Icons.chat_bubble_outline,
-                onTap: () => _startVisualQuestions(
-                  difficulty: 'Hard',
-                  mode: VisualQuestionMode.hard,
-                  title: 'Hard Level – Conversation',
-                ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const HardLevelPage(),
+                    ),
+                  );
+                },
               ),
               
               const SizedBox(height: 32),

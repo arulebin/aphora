@@ -70,9 +70,20 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
     await _speechService.speakText(text, language: _languageCode);
   }
 
+  /// Run the grapheme-aware analyzer against both the Tamil and the
+  /// English phrase (when applicable) and return whichever scores
+  /// higher — the patient might speak either language for Easy/Medium.
+  PronunciationAnalysis _bestAnalysis(QuestionData q, String spoken) {
+    if (widget.mode == VisualQuestionMode.hard) {
+      return TextEvaluator.analyze(q.englishPhrase, spoken);
+    }
+    final tamil = TextEvaluator.analyze(q.tamilPhrase, spoken);
+    final english = TextEvaluator.analyze(q.englishPhrase, spoken);
+    return tamil.similarity >= english.similarity ? tamil : english;
+  }
+
   Future<void> _startListening() async {
     final question = widget.questions[currentIndex];
-    final expected = _expectedFor(question);
 
     setState(() {
       _isListening = true;
@@ -86,7 +97,7 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
       );
       if (!mounted) return;
 
-      final result = TextEvaluator.analyze(expected, spoken);
+      final result = _bestAnalysis(question, spoken);
 
       setState(() {
         _isListening = false;
@@ -180,6 +191,8 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
         currentIndex++;
         _lastResult = null;
       });
+    } else {
+      _showCompletionDialog();
     }
   }
 
@@ -190,6 +203,157 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
         _lastResult = null;
       });
     }
+  }
+
+  void _showCompletionDialog() {
+    final percentageScore =
+        ((score / widget.questions.length) * 100).toStringAsFixed(1);
+    final correctAnswers = answeredQuestions.where((a) => a).length;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.celebration, color: Color(0xFF10B981), size: 28),
+            SizedBox(width: 8),
+            Text('Session Complete!'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    'Score: $score / ${widget.questions.length}',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF10B981),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$percentageScore% Accuracy',
+                    style: const TextStyle(fontSize: 18, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  Column(
+                    children: [
+                      const Icon(Icons.check_circle,
+                          color: Color(0xFF10B981), size: 32),
+                      const SizedBox(height: 8),
+                      Text(
+                        correctAnswers.toString(),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Text('Correct',
+                          style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
+                  ),
+                  Column(
+                    children: [
+                      const Icon(Icons.cancel,
+                          color: Color(0xFFEF4444), size: 32),
+                      const SizedBox(height: 8),
+                      Text(
+                        (widget.questions.length - correctAnswers).toString(),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Text('Incorrect',
+                          style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (double.parse(percentageScore) >= 80)
+              const Column(
+                children: [
+                  Icon(Icons.star, color: Color(0xFFF59E0B), size: 40),
+                  SizedBox(height: 8),
+                  Text(
+                    'Excellent Performance!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF10B981),
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              )
+            else if (double.parse(percentageScore) >= 60)
+              const Column(
+                children: [
+                  Icon(Icons.thumb_up, color: Color(0xFF3B82F6), size: 40),
+                  SizedBox(height: 8),
+                  Text(
+                    'Good effort! Keep practicing.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              )
+            else
+              const Column(
+                children: [
+                  Icon(Icons.lightbulb, color: Color(0xFFF59E0B), size: 40),
+                  SizedBox(height: 8),
+                  Text(
+                    'Keep practicing to improve!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // close dialog
+              Navigator.pop(context); // leave the question page
+            },
+            child: const Text('Finish'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
