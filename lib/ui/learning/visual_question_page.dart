@@ -1,15 +1,9 @@
-import 'dart:io' show File;
-
-import 'package:aphora/data/aphora_api_service.dart';
 import 'package:aphora/data/learning/question_data.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/logic/speech_service.dart';
 import 'package:aphora/main.dart';
 import 'package:aphora/ui/widgets/clinical_app_bar.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:record/record.dart';
 
 /// How the question is presented to the patient.
 ///
@@ -38,13 +32,10 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
   late int currentIndex;
   late List<bool> answeredQuestions;
   late SpeechService _speechService;
-  final AudioRecorder _recorder = AudioRecorder();
 
   int score = 0;
-  bool _isRecording = false;
-  bool _isEvaluating = false;
-  EvaluationResult? _lastResult;
-  String? _errorMessage;
+  bool _isListening = false;
+  PronunciationAnalysis? _lastResult;
 
   @override
   void initState() {
@@ -57,198 +48,101 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
   @override
   void dispose() {
     _speechService.dispose();
-    _recorder.dispose();
     super.dispose();
   }
 
+  String get _languageCode =>
+      widget.mode == VisualQuestionMode.hard ? 'en-US' : 'ta-IN';
+
+  String _expectedFor(QuestionData q) =>
+      widget.mode == VisualQuestionMode.hard ? q.englishPhrase : q.tamilPhrase;
+
   void _playAudio() async {
     final question = widget.questions[currentIndex];
-    final text = widget.mode == VisualQuestionMode.hard
-        ? question.englishPhrase
-        : question.tamilPhrase;
-    final language =
-        widget.mode == VisualQuestionMode.hard ? 'en-US' : 'ta-IN';
+    final text = _expectedFor(question);
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Playing audio... Check your volume is on.'),
         duration: Duration(seconds: 1),
       ),
     );
-    await _speechService.speakText(text, language: language);
+    await _speechService.speakText(text, language: _languageCode);
   }
 
-  Future<void> _toggleRecording() async {
-    if (_isRecording) {
-      await _stopRecordingAndEvaluate();
-    } else {
-      await _startRecording();
-    }
-  }
-
-  Future<void> _startRecording() async {
-    try {
-      if (!await _recorder.hasPermission()) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Microphone permission denied.')),
-          );
-        }
-        return;
-      }
-      String path = '';
-      if (!kIsWeb) {
-        final dir = await getApplicationDocumentsDirectory();
-        path =
-            '${dir.path}/visual_q_${DateTime.now().millisecondsSinceEpoch}.wav';
-      }
-
-      await _recorder.start(
-        const RecordConfig(encoder: AudioEncoder.wav),
-        path: path,
-      );
-
-      setState(() {
-        _isRecording = true;
-        _lastResult = null;
-        _errorMessage = null;
-      });
-    } catch (e) {
-      debugPrint('Error starting recording: $e');
-    }
-  }
-
-  Future<void> _stopRecordingAndEvaluate() async {
-    String? path;
-    try {
-      path = await _recorder.stop();
-    } catch (e) {
-      debugPrint('Error stopping recorder: $e');
-    }
-
-    setState(() {
-      _isRecording = false;
-    });
-
-    if (path == null) return;
-    await _evaluateRecording(path);
-  }
-
-  Future<void> _evaluateRecording(String userAudioPath) async {
+  Future<void> _startListening() async {
     final question = widget.questions[currentIndex];
+    final expected = _expectedFor(question);
+
     setState(() {
-      _isEvaluating = true;
-      _errorMessage = null;
+      _isListening = true;
+      _lastResult = null;
     });
 
     try {
-      final result = await _evaluateUserAudio(question, userAudioPath);
+      final spoken = await _speechService.startListening(
+        language: _languageCode,
+        maxDuration: 10,
+      );
       if (!mounted) return;
 
+      final result = TextEvaluator.analyze(expected, spoken);
+
       setState(() {
+        _isListening = false;
         _lastResult = result;
       });
 
-      final isCorrect = result.isCorrect;
-      if (isCorrect && !answeredQuestions[currentIndex]) {
+      if (result.isCorrect && !answeredQuestions[currentIndex]) {
         setState(() {
           score++;
           answeredQuestions[currentIndex] = true;
         });
       }
 
-      // Persist for the logged-in patient (every attempt feeds analytics).
+      // Persist the attempt for analytics regardless of outcome.
       await Locator.userDatabaseService.recordExerciseResult(
         taskId: 'q_${question.id}_${widget.mode.name}',
-        accuracy: result.combinedAccuracy,
-        fluency: result.audioSimilarity * 100,
+        accuracy: result.similarity,
+        fluency: result.similarity,
       );
 
       if (!mounted) return;
       _showResultSnackbar(result);
 
-      if (isCorrect) {
+      if (result.isCorrect) {
         Future.delayed(const Duration(seconds: 2), () {
           if (mounted) _goToNextQuestion();
         });
       }
-    } on AphoraApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = e.message;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('API error: ${e.message}')),
-      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = e.toString();
+        _isListening = false;
       });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isEvaluating = false;
-        });
-      }
-    }
-  }
-
-  /// Sends the user audio to the Aphora API for scoring.
-  ///
-  /// We try to synthesize a reference clip via TTS; that gives the
-  /// API both an audio-level signal (WavLM/DTW) and a text-level
-  /// signal (Wav2Vec2 CTC + CER/WER). If TTS-to-file isn't available
-  /// (e.g. on web), we fall back to sending the user audio as both
-  /// reference and user — audio similarity is then meaningless but
-  /// the text-level CER score is what catches a wrong answer.
-  Future<EvaluationResult> _evaluateUserAudio(
-    QuestionData question,
-    String userAudioPath,
-  ) async {
-    final referenceText = widget.mode == VisualQuestionMode.hard
-        ? question.englishPhrase
-        : question.tamilPhrase;
-    final language =
-        widget.mode == VisualQuestionMode.hard ? 'en-US' : 'ta-IN';
-
-    final refPath = await _speechService.synthesizeToFile(
-      referenceText,
-      language: language,
-    );
-
-    List<int> refBytes;
-    if (refPath != null && !kIsWeb) {
-      refBytes = await File(refPath).readAsBytes();
-    } else if (!kIsWeb) {
-      refBytes = await File(userAudioPath).readAsBytes();
-    } else {
-      // Web: AphoraApiService handles the user blob; for the reference
-      // we re-use the same blob URL (audio similarity becomes trivial
-      // but text similarity from the user's transcription still scores
-      // whether they said the right word).
-      throw AphoraApiException(
-        'TTS-to-file is not available on web yet. Please run on mobile.',
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
       );
     }
-
-    return Locator.aphoraApiService.evaluate(
-      referenceBytes: refBytes,
-      referenceFilename: 'ref.wav',
-      userAudioPath: userAudioPath,
-      referenceText: referenceText,
-    );
   }
 
-  void _showResultSnackbar(EvaluationResult result) {
-    final isCorrect = result.isCorrect;
+  void _showResultSnackbar(PronunciationAnalysis result) {
+    final ok = result.isCorrect;
+    final missed = result.mispronouncedLetters.take(4).join(' ');
+    final detail = ok
+        ? 'Accuracy ${result.similarity.toStringAsFixed(1)}%'
+        : missed.isEmpty
+            ? 'Accuracy ${result.similarity.toStringAsFixed(1)}%'
+            : 'Accuracy ${result.similarity.toStringAsFixed(1)}% — work on: $missed';
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: isCorrect ? const Color(0xFF10B981) : Colors.red,
+        backgroundColor: ok ? const Color(0xFF10B981) : Colors.red,
         duration: const Duration(seconds: 3),
         content: Row(
           children: [
             Icon(
-              isCorrect ? Icons.check_circle : Icons.cancel,
+              ok ? Icons.check_circle : Icons.cancel,
               color: Colors.white,
             ),
             const SizedBox(width: 12),
@@ -258,14 +152,14 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isCorrect ? 'Correct! +1 Point' : 'Try Again (need 70%)',
+                    ok ? 'Correct! +1 Point' : 'Try Again',
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   Text(
-                    '${result.combinedAccuracy.toStringAsFixed(1)}% — ${result.feedbackMessage}',
+                    detail,
                     style: const TextStyle(color: Colors.white70),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -285,7 +179,6 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
         answeredQuestions[currentIndex] = true;
         currentIndex++;
         _lastResult = null;
-        _errorMessage = null;
       });
     }
   }
@@ -295,7 +188,6 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
       setState(() {
         currentIndex--;
         _lastResult = null;
-        _errorMessage = null;
       });
     }
   }
@@ -349,31 +241,6 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
               const SizedBox(height: 32),
               _buildControlButtons(),
               const SizedBox(height: 16),
-              if (_isEvaluating)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      SizedBox(width: 10),
-                      Text('Evaluating with Aphora API...'),
-                    ],
-                  ),
-                ),
-              if (_errorMessage != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    _errorMessage!,
-                    style: const TextStyle(color: Colors.red, fontSize: 13),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
               if (_lastResult != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -449,9 +316,9 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
     }
   }
 
-  Widget _buildResultCard(EvaluationResult result) {
-    final isCorrect = result.isCorrect;
-    final color = isCorrect ? DuoColors.green : DuoColors.red;
+  Widget _buildResultCard(PronunciationAnalysis result) {
+    final ok = result.isCorrect;
+    final color = ok ? DuoColors.green : DuoColors.red;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -466,28 +333,34 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
           Row(
             children: [
               Icon(
-                isCorrect ? Icons.check_circle : Icons.error_outline,
+                ok ? Icons.check_circle : Icons.error_outline,
                 color: color,
               ),
               const SizedBox(width: 8),
               Text(
-                isCorrect ? 'Correct!' : 'Needs improvement',
+                ok ? 'Correct!' : 'Needs improvement',
                 style: TextStyle(fontWeight: FontWeight.bold, color: color),
               ),
               const Spacer(),
               Text(
-                '${result.combinedAccuracy.toStringAsFixed(0)}%',
+                '${result.similarity.toStringAsFixed(0)}%',
                 style: TextStyle(fontWeight: FontWeight.bold, color: color),
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(result.feedbackMessage, style: const TextStyle(fontSize: 13)),
-          if (result.userText != null && result.userText!.isNotEmpty)
+          if (result.actualNormalized.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                'You said: "${result.userText}"',
+                'You said: "${result.actualNormalized}"',
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ),
+          if (result.mispronouncedLetters.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'Work on: ${result.mispronouncedLetters.take(6).join(" ")}',
                 style: const TextStyle(fontSize: 12, color: Colors.black54),
               ),
             ),
@@ -504,7 +377,7 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
       children: [
         if (showHearButton)
           ElevatedButton.icon(
-            onPressed: _isEvaluating ? null : _playAudio,
+            onPressed: _isListening ? null : _playAudio,
             icon: const Icon(Icons.volume_up),
             label: const Text('Hear'),
             style: ElevatedButton.styleFrom(
@@ -517,11 +390,11 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
             ),
           ),
         ElevatedButton.icon(
-          onPressed: _isEvaluating ? null : _toggleRecording,
-          icon: Icon(_isRecording ? Icons.stop : Icons.mic),
-          label: Text(_isRecording ? 'Stop' : 'Record'),
+          onPressed: _isListening ? null : _startListening,
+          icon: Icon(_isListening ? Icons.graphic_eq : Icons.mic),
+          label: Text(_isListening ? 'Listening…' : 'Record'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: _isRecording ? Colors.grey : Colors.red,
+            backgroundColor: _isListening ? Colors.grey : Colors.red,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             shape: RoundedRectangleBorder(

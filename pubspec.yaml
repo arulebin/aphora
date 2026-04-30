@@ -50,6 +50,7 @@ dependencies:
   path_provider: ^2.0.15
   audioplayers: ^6.6.0
   google_fonts: ^6.2.1
+  characters: ^1.3.0
 
 dev_dependencies:
   flutter_test:

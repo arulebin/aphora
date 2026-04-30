@@ -1,10 +1,8 @@
-import 'package:aphora/data/aphora_api_service.dart';
 import 'package:aphora/logic/locator.dart';
+import 'package:aphora/logic/speech_service.dart';
+import 'package:aphora/ui/learning/letter_training_page.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:record/record.dart';
 
 class PhoneticTestPage extends StatefulWidget {
   const PhoneticTestPage({super.key});
@@ -14,6 +12,8 @@ class PhoneticTestPage extends StatefulWidget {
 }
 
 class _PhoneticTestPageState extends State<PhoneticTestPage> {
+  // Each task has a Tamil reference phrase, an audio asset for playback,
+  // and the language locale used for speech recognition.
   final List<Map<String, String>> _tasks = const [
     {
       'id': 'phonetic_vannakam',
@@ -21,7 +21,7 @@ class _PhoneticTestPageState extends State<PhoneticTestPage> {
       'titleTamil': 'வணக்கம்',
       'subtitle': 'Greeting in Tamil',
       'asset': 'assets/vannakam.wav',
-      'referenceText': 'vanakkam',
+      'language': 'ta-IN',
     },
     {
       'id': 'phonetic_saptirgala',
@@ -29,7 +29,7 @@ class _PhoneticTestPageState extends State<PhoneticTestPage> {
       'titleTamil': 'சாப்பிட்டீர்களா',
       'subtitle': 'Have you eaten?',
       'asset': 'assets/saptiya.wav',
-      'referenceText': 'saptirgala',
+      'language': 'ta-IN',
     },
     {
       'id': 'phonetic_epadi',
@@ -37,7 +37,7 @@ class _PhoneticTestPageState extends State<PhoneticTestPage> {
       'titleTamil': 'எப்படி இருக்கிறீர்கள்',
       'subtitle': 'How are you?',
       'asset': 'assets/epdi.wav',
-      'referenceText': 'epadi irukkindrirgal',
+      'language': 'ta-IN',
     },
   ];
 
@@ -86,7 +86,8 @@ class _PhoneticTestPageState extends State<PhoneticTestPage> {
                       title: task['titleTamil'] ?? task['title']!,
                       subtitle: task['subtitle']!,
                       assetPath: task['asset']!,
-                      referenceText: task['referenceText'],
+                      expectedPhrase: task['titleTamil']!,
+                      language: task['language'] ?? 'ta-IN',
                     ),
                   ),
                 );
@@ -104,7 +105,11 @@ class PhoneticTaskDetailPage extends StatefulWidget {
   final String title;
   final String subtitle;
   final String assetPath;
-  final String? referenceText;
+
+  /// The phrase the patient is expected to say (matches what STT
+  /// will be compared against).
+  final String expectedPhrase;
+  final String language;
 
   const PhoneticTaskDetailPage({
     super.key,
@@ -112,7 +117,8 @@ class PhoneticTaskDetailPage extends StatefulWidget {
     required this.title,
     required this.subtitle,
     required this.assetPath,
-    this.referenceText,
+    required this.expectedPhrase,
+    this.language = 'ta-IN',
   });
 
   @override
@@ -120,17 +126,19 @@ class PhoneticTaskDetailPage extends StatefulWidget {
 }
 
 class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
-  final AudioRecorder _audioRecorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer();
-  bool _isRecording = false;
+  late final SpeechService _speechService;
+
   bool _isPlaying = false;
+  bool _isListening = false;
   bool _isEvaluating = false;
-  EvaluationResult? _result;
+  PronunciationAnalysis? _result;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
+    _speechService = SpeechService();
     _audioPlayer.onPlayerStateChanged.listen((state) {
       if (mounted) {
         setState(() {
@@ -142,8 +150,8 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
 
   @override
   void dispose() {
-    _audioRecorder.dispose();
     _audioPlayer.dispose();
+    _speechService.dispose();
     super.dispose();
   }
 
@@ -161,92 +169,71 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
     }
   }
 
-  Future<void> _startRecording() async {
-    try {
-      if (await _audioRecorder.hasPermission()) {
-        String path = '';
-
-        if (!kIsWeb) {
-          final dir = await getApplicationDocumentsDirectory();
-          path =
-              '${dir.path}/user_audio_${DateTime.now().millisecondsSinceEpoch}.wav';
-        }
-
-        await _audioRecorder.start(
-          const RecordConfig(encoder: AudioEncoder.wav),
-          path: path,
-        );
-
-        setState(() {
-          _isRecording = true;
-          _result = null;
-          _errorMessage = null;
-        });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Microphone permission denied!')),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error starting record: $e');
-    }
+  Future<void> _speakViaTts() async {
+    // Fallback / supplement to the recorded reference: speak the phrase
+    // through TTS so the patient can hear a synthesised version too.
+    await _speechService.speakText(
+      widget.expectedPhrase,
+      language: widget.language,
+    );
   }
 
-  Future<void> _stopRecording() async {
-    try {
-      final path = await _audioRecorder.stop();
-      setState(() {
-        _isRecording = false;
-      });
+  Future<void> _startListening() async {
+    if (_isListening || _isEvaluating) return;
 
-      if (path != null) {
-        await _evaluateRecording(path);
-      }
-    } catch (e) {
-      debugPrint('Error stopping record: $e');
-    }
-  }
-
-  Future<void> _evaluateRecording(String userAudioPath) async {
     setState(() {
-      _isEvaluating = true;
+      _isListening = true;
       _errorMessage = null;
+      _result = null;
     });
 
     try {
-      final result = await Locator.aphoraApiService.evaluateAgainstAsset(
-        referenceAssetPath: widget.assetPath,
-        userAudioPath: userAudioPath,
-        referenceText: widget.referenceText,
+      final spoken = await _speechService.startListening(
+        language: widget.language,
+        maxDuration: 8,
       );
+      if (!mounted) return;
+
+      setState(() {
+        _isListening = false;
+        _isEvaluating = true;
+      });
+
+      final result = TextEvaluator.analyze(widget.expectedPhrase, spoken);
 
       if (!mounted) return;
       setState(() {
+        _isEvaluating = false;
         _result = result;
       });
 
-      // Persist progress for the logged-in patient.
+      // Persist the attempt so it shows up on the homepage chart.
       await Locator.userDatabaseService.recordExerciseResult(
         taskId: widget.taskId,
-        accuracy: result.combinedAccuracy,
-        fluency: result.audioSimilarity * 100,
+        accuracy: result.similarity,
+        fluency: result.similarity,
       );
-    } on AphoraApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = e.message;
-      });
+
+      // Even ONE mispronounced letter triggers the targeted drill.
+      if (result.needsTraining) {
+        await Future.delayed(const Duration(milliseconds: 600));
+        if (!mounted) return;
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => LetterTrainingPage(
+              letters: result.mispronouncedLetters,
+              language: widget.language,
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
+        _isListening = false;
+        _isEvaluating = false;
         _errorMessage = 'Failed to evaluate: $e';
       });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isEvaluating = false;
-        });
-      }
     }
   }
 
@@ -264,7 +251,7 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
           children: [
             const Spacer(),
             const Text(
-              "Press and hold the microphone to say the word below:",
+              "Tap the microphone and say the phrase below:",
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 18, color: Colors.grey),
             ),
@@ -285,17 +272,31 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
-            IconButton(
-              onPressed: _playReferenceAudio,
-              icon: Icon(
-                _isPlaying ? Icons.stop_circle : Icons.play_circle,
-                size: 48,
-                color: Colors.indigo,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  onPressed: _playReferenceAudio,
+                  icon: Icon(
+                    _isPlaying ? Icons.stop_circle : Icons.play_circle,
+                    size: 48,
+                    color: Colors.indigo,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                IconButton(
+                  onPressed: _isEvaluating ? null : _speakViaTts,
+                  icon: const Icon(
+                    Icons.volume_up,
+                    size: 40,
+                    color: Colors.indigo,
+                  ),
+                ),
+              ],
             ),
             const Text(
-              "Listen to reference",
-              style: TextStyle(color: Colors.grey),
+              "Reference audio  •  TTS",
+              style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
             const Spacer(),
 
@@ -304,18 +305,17 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
             const SizedBox(height: 40),
 
             GestureDetector(
-              onLongPressStart: _isEvaluating ? null : (_) => _startRecording(),
-              onLongPressEnd: _isEvaluating ? null : (_) => _stopRecording(),
+              onTap: _isEvaluating ? null : _startListening,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                height: _isRecording ? 120 : 100,
-                width: _isRecording ? 120 : 100,
+                height: _isListening ? 120 : 100,
+                width: _isListening ? 120 : 100,
                 decoration: BoxDecoration(
-                  color: _isRecording ? Colors.red : Colors.indigo,
+                  color: _isListening ? Colors.red : Colors.indigo,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: (_isRecording ? Colors.red : Colors.indigo)
+                      color: (_isListening ? Colors.red : Colors.indigo)
                           .withOpacity(0.4),
                       blurRadius: 15,
                       spreadRadius: 5,
@@ -323,7 +323,7 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
                   ],
                 ),
                 child: Icon(
-                  _isRecording ? Icons.mic : Icons.mic_none,
+                  _isListening ? Icons.graphic_eq : Icons.mic_none,
                   color: Colors.white,
                   size: 50,
                 ),
@@ -333,10 +333,13 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
             Text(
               _isEvaluating
                   ? "Analyzing your pronunciation..."
-                  : _isRecording
-                      ? "Recording... Release to submit"
-                      : "Hold to Record",
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  : _isListening
+                      ? "Listening… speak now"
+                      : "Tap to speak",
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 40),
           ],
@@ -410,7 +413,7 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
               ),
               const SizedBox(width: 8),
               Text(
-                isCorrect ? 'Great job!' : 'Try again',
+                isCorrect ? 'Great job!' : 'Let\'s practice',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
@@ -419,7 +422,7 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
               ),
               const Spacer(),
               Text(
-                '${result.combinedAccuracy.toStringAsFixed(0)}%',
+                '${result.similarity.toStringAsFixed(0)}%',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
@@ -428,18 +431,26 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            result.feedbackMessage,
-            style: const TextStyle(fontSize: 14),
-          ),
-          if (result.userText != null && result.userText!.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              'You said: "${result.userText}"',
-              style: const TextStyle(fontSize: 12, color: Colors.black54),
+          if (result.actualNormalized.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'You said: "${result.actualNormalized}"',
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
             ),
-          ],
+          if (result.mispronouncedLetters.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'Practice these: ${result.mispronouncedLetters.take(8).join("  ")}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
         ],
       ),
     );

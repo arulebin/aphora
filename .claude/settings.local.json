@@ -3,7 +3,9 @@
     "allow": [
       "PowerShell(flutter analyze --no-pub 2>&1)",
       "PowerShell(fvm flutter analyze --no-pub 2>&1)",
-      "PowerShell($out = fvm flutter analyze --no-pub lib/ui/home/home_page.dart lib/ui/learning/phonetic_test_page.dart lib/ui/learning/visual_question_page.dart lib/ui/assessment/assessment_page.dart lib/data/aphora_api_service.dart lib/data/database_service/user_database_service.dart lib/data/models/usermodel.dart lib/logic/speech_service.dart lib/logic/locator.dart 2>&1; \\($out | Select-String -Pattern \"error -\"\\).Count; \"ERROR LINES:\"; $out | Select-String -Pattern \"error -\"; \"WARNING LINES:\"; $out | Select-String -Pattern \"warning -\")"
+      "PowerShell($out = fvm flutter analyze --no-pub lib/ui/home/home_page.dart lib/ui/learning/phonetic_test_page.dart lib/ui/learning/visual_question_page.dart lib/ui/assessment/assessment_page.dart lib/data/aphora_api_service.dart lib/data/database_service/user_database_service.dart lib/data/models/usermodel.dart lib/logic/speech_service.dart lib/logic/locator.dart 2>&1; \\($out | Select-String -Pattern \"error -\"\\).Count; \"ERROR LINES:\"; $out | Select-String -Pattern \"error -\"; \"WARNING LINES:\"; $out | Select-String -Pattern \"warning -\")",
+      "PowerShell(fvm flutter pub get 2>&1)",
+      "PowerShell($out = fvm flutter analyze --no-pub lib/logic/speech_service.dart lib/data/learning/letter_training_data.dart lib/ui/learning/letter_training_page.dart lib/ui/learning/visual_question_page.dart lib/ui/learning/phonetic_test_page.dart 2>&1; \"ERRORS:\"; $out | Select-String -Pattern \"error -\"; \"WARNINGS:\"; $out | Select-String -Pattern \"warning -\"; \"TOTAL:\"; \\($out | Select-Object -Last 3\\))"
     ]
   }
 }

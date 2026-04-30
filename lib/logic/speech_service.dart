@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'package:characters/characters.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:path_provider/path_provider.dart';
@@ -343,77 +344,185 @@ class SpeechService {
   }
 }
 
-/// Evaluates similarity between two texts
+/// Detailed result of comparing what the patient said against the
+/// expected phrase. The list of [mispronouncedLetters] is what drives
+/// the targeted training drill.
+class PronunciationAnalysis {
+  /// 0-100 character-level similarity (Levenshtein on grapheme clusters).
+  final double similarity;
+
+  /// True only when [actual] matches [expected] perfectly after normalization.
+  final bool isPerfect;
+
+  /// Unique grapheme clusters from [expected] that appear to have been
+  /// substituted, missed, or otherwise mispronounced. Whitespace is
+  /// excluded. Order preserves the order of appearance in [expected].
+  final List<String> mispronouncedLetters;
+
+  final String expectedNormalized;
+  final String actualNormalized;
+
+  const PronunciationAnalysis({
+    required this.similarity,
+    required this.isPerfect,
+    required this.mispronouncedLetters,
+    required this.expectedNormalized,
+    required this.actualNormalized,
+  });
+
+  /// Treat scores \u2265 95% with no missed letters as a clean pass.
+  bool get isCorrect => isPerfect || (similarity >= 95 && mispronouncedLetters.isEmpty);
+
+  /// Whether to trigger the per-letter training drill. Even one
+  /// mispronounced letter qualifies \u2014 that's the whole point.
+  bool get needsTraining => mispronouncedLetters.isNotEmpty;
+}
+
+/// Evaluates similarity between two texts.
+///
+/// All comparisons operate on **grapheme clusters** (`Characters`) so
+/// Tamil combining marks like \u0BC8, \u0BC1, \u0BCD are treated as part of the
+/// preceding letter rather than independent characters.
 class TextEvaluator {
-  /// Calculate similarity percentage between expected and actual text.
-  ///
-  /// Earlier versions of this method kept only Tamil characters via
-  /// `[^\u0B80-\u0BFF\s]`, which silently stripped English-only inputs
-  /// to empty strings \u2014 causing every recording to score 100%
-  /// regardless of what was said. We now keep Tamil letters, ASCII
-  /// letters, and digits so both languages score honestly.
+  /// Backwards-compatible: returns a 0-100 similarity score only.
   static double calculateSimilarity(String expected, String actual) {
-    String normalizeText(String text) {
-      return text
-          .toLowerCase()
-          .trim()
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .replaceAll(RegExp(r'[^a-z0-9\u0B80-\u0BFF\s]'), '');
-    }
-
-    String normalizedExpected = normalizeText(expected);
-    String normalizedActual = normalizeText(actual);
-
-    // If both inputs normalize to empty (e.g. silence vs silence) we
-    // can't meaningfully compare them \u2014 treat as zero rather than 100.
-    if (normalizedExpected.isEmpty && normalizedActual.isEmpty) {
-      return 0.0;
-    }
-    if (normalizedExpected.isEmpty || normalizedActual.isEmpty) {
-      return 0.0;
-    }
-
-    if (normalizedExpected == normalizedActual) {
-      return 100.0;
-    }
-
-    int distance = _levenshteinDistance(normalizedExpected, normalizedActual);
-    int maxLength = normalizedExpected.length > normalizedActual.length
-        ? normalizedExpected.length
-        : normalizedActual.length;
-
-    if (maxLength == 0) return 0.0;
-
-    double similarity = ((maxLength - distance) / maxLength) * 100;
-    return similarity.clamp(0, 100);
+    return analyze(expected, actual).similarity;
   }
 
-  /// Levenshtein distance algorithm for string similarity
-  static int _levenshteinDistance(String s1, String s2) {
-    if (s1.isEmpty) return s2.length;
-    if (s2.isEmpty) return s1.length;
+  static String _normalize(String text) {
+    return text
+        .toLowerCase()
+        .trim()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        // Strip punctuation but keep Tamil block (\u0B80\u2013\u0BFF), ASCII
+        // letters and digits, and spaces.
+        .replaceAll(RegExp(r'[^a-z0-9\u0B80-\u0BFF\s]'), '');
+  }
 
-    List<List<int>> dp =
-        List.generate(s1.length + 1, (i) => List.filled(s2.length + 1, 0));
+  /// Run a full character-level analysis between [expected] and [actual]
+  /// and return the list of letters in [expected] that don't have a
+  /// matching counterpart in [actual].
+  static PronunciationAnalysis analyze(String expected, String actual) {
+    final normExpected = _normalize(expected);
+    final normActual = _normalize(actual);
 
-    for (int i = 0; i <= s1.length; i++) {
-      dp[i][0] = i;
+    if (normExpected.isEmpty || normActual.isEmpty) {
+      return PronunciationAnalysis(
+        similarity: 0.0,
+        isPerfect: false,
+        mispronouncedLetters: const [],
+        expectedNormalized: normExpected,
+        actualNormalized: normActual,
+      );
     }
-    for (int j = 0; j <= s2.length; j++) {
-      dp[0][j] = j;
+
+    if (normExpected == normActual) {
+      return PronunciationAnalysis(
+        similarity: 100.0,
+        isPerfect: true,
+        mispronouncedLetters: const [],
+        expectedNormalized: normExpected,
+        actualNormalized: normActual,
+      );
     }
 
-    for (int i = 1; i <= s1.length; i++) {
-      for (int j = 1; j <= s2.length; j++) {
-        if (s1[i - 1] == s2[j - 1]) {
-          dp[i][j] = dp[i - 1][j - 1];
-        } else {
-          dp[i][j] = 1 + [dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]].reduce(
-              (a, b) => a < b ? a : b);
+    // Grapheme-cluster aware tokenization (correct for Tamil).
+    final expectedChars = normExpected.characters.toList();
+    final actualChars = normActual.characters.toList();
+
+    final ops = _alignmentOps(expectedChars, actualChars);
+
+    // A grapheme is "mispronounced" if it was substituted or deleted
+    // in the alignment from expected \u2192 actual.
+    final mispronounced = <String>[];
+    final seen = <String>{};
+    for (final op in ops) {
+      if (op.kind == _OpKind.substitute || op.kind == _OpKind.delete) {
+        final g = op.expectedChar;
+        if (g != null && g.trim().isNotEmpty && seen.add(g)) {
+          mispronounced.add(g);
         }
       }
     }
 
-    return dp[s1.length][s2.length];
+    final maxLen = expectedChars.length > actualChars.length
+        ? expectedChars.length
+        : actualChars.length;
+    final edits = ops.where((o) => o.kind != _OpKind.match).length;
+    final similarity = maxLen == 0
+        ? 0.0
+        : ((maxLen - edits) / maxLen * 100).clamp(0.0, 100.0);
+
+    return PronunciationAnalysis(
+      similarity: similarity.toDouble(),
+      isPerfect: false,
+      mispronouncedLetters: mispronounced,
+      expectedNormalized: normExpected,
+      actualNormalized: normActual,
+    );
   }
+
+  /// Levenshtein backtrace, returning the edit operations that turn
+  /// [expected] into [actual]. Used to identify which expected
+  /// graphemes were substituted or deleted.
+  static List<_EditOp> _alignmentOps(
+    List<String> expected,
+    List<String> actual,
+  ) {
+    final n = expected.length;
+    final m = actual.length;
+    final dp = List.generate(n + 1, (_) => List<int>.filled(m + 1, 0));
+    for (int i = 0; i <= n; i++) {
+      dp[i][0] = i;
+    }
+    for (int j = 0; j <= m; j++) {
+      dp[0][j] = j;
+    }
+    for (int i = 1; i <= n; i++) {
+      for (int j = 1; j <= m; j++) {
+        if (expected[i - 1] == actual[j - 1]) {
+          dp[i][j] = dp[i - 1][j - 1];
+        } else {
+          final del = dp[i - 1][j] + 1;
+          final ins = dp[i][j - 1] + 1;
+          final sub = dp[i - 1][j - 1] + 1;
+          dp[i][j] = del < ins ? (del < sub ? del : sub) : (ins < sub ? ins : sub);
+        }
+      }
+    }
+
+    final ops = <_EditOp>[];
+    int i = n;
+    int j = m;
+    while (i > 0 || j > 0) {
+      if (i > 0 && j > 0 && expected[i - 1] == actual[j - 1]) {
+        ops.add(_EditOp(_OpKind.match, expected[i - 1], actual[j - 1]));
+        i--;
+        j--;
+      } else if (i > 0 && j > 0 && dp[i][j] == dp[i - 1][j - 1] + 1) {
+        ops.add(_EditOp(_OpKind.substitute, expected[i - 1], actual[j - 1]));
+        i--;
+        j--;
+      } else if (i > 0 && dp[i][j] == dp[i - 1][j] + 1) {
+        ops.add(_EditOp(_OpKind.delete, expected[i - 1], null));
+        i--;
+      } else if (j > 0 && dp[i][j] == dp[i][j - 1] + 1) {
+        ops.add(_EditOp(_OpKind.insert, null, actual[j - 1]));
+        j--;
+      } else {
+        break;
+      }
+    }
+
+    return ops.reversed.toList(growable: false);
+  }
+}
+
+enum _OpKind { match, substitute, insert, delete }
+
+class _EditOp {
+  final _OpKind kind;
+  final String? expectedChar;
+  final String? actualChar;
+  const _EditOp(this.kind, this.expectedChar, this.actualChar);
 }
