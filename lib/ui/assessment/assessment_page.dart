@@ -2,7 +2,6 @@ import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/ui/widgets/clinical_app_bar.dart';
 import 'package:aphora/ui/profile/settings_page.dart';
-import 'package:aphora/ui/learning/task_list_page.dart';
 import 'package:aphora/ui/learning/medium_level_page.dart';
 import 'package:aphora/ui/learning/hard_level_page.dart';
 import 'package:aphora/ui/profile/profile_page.dart';
@@ -11,7 +10,8 @@ import 'package:aphora/ui/video_call/videocall_page.dart';
 import 'package:aphora/ui/assessment/pre_assessment_test_page.dart';
 import 'package:aphora/ui/assessment/gamified_image_selection_page.dart' hide allQuestions;
 import 'package:aphora/ui/learning/visual_question_page.dart';
-import 'package:aphora/data/learning/question_data.dart' show QuestionData, allQuestions, getQuestionsByCategory;
+import 'package:aphora/ui/learning/phonetic_test_page.dart';
+import 'package:aphora/data/learning/question_data.dart' show QuestionData, allQuestions;
 import 'package:aphora/data/models/booking_model.dart';
 import 'package:aphora/data/models/therapist_model.dart';
 import 'package:flutter/material.dart';
@@ -598,8 +598,8 @@ class _AssessmentPageState extends State<AssessmentPage> {
   /// Hard-level conversation prompts. The question_data dataset doesn't
   /// include any questions tagged 'Hard', so we synthesize a small set
   /// of sentence-style prompts here that reuse familiar imagery.
-  static const List<qd.QuestionData> _hardSentencePrompts = <qd.QuestionData>[
-    qd.QuestionData(
+  static const List<QuestionData> _hardSentencePrompts = <QuestionData>[
+    QuestionData(
       id: 1001,
       category: 'Conversation',
       englishPhrase: 'Hello, how are you today?',
@@ -607,7 +607,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
       imagePath: 'assets/images/questions/26_hello.png',
       difficulty: 'Hard',
     ),
-    qd.QuestionData(
+    QuestionData(
       id: 1002,
       category: 'Conversation',
       englishPhrase: 'Can you please bring me some water?',
@@ -615,7 +615,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
       imagePath: 'assets/images/questions/1_water.png',
       difficulty: 'Hard',
     ),
-    qd.QuestionData(
+    QuestionData(
       id: 1003,
       category: 'Conversation',
       englishPhrase: 'I would like to eat some food.',
@@ -623,7 +623,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
       imagePath: 'assets/images/questions/2_food.png',
       difficulty: 'Hard',
     ),
-    qd.QuestionData(
+    QuestionData(
       id: 1004,
       category: 'Conversation',
       englishPhrase: 'I need to take my medicine now.',
@@ -631,7 +631,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
       imagePath: 'assets/images/questions/5_medicine.png',
       difficulty: 'Hard',
     ),
-    qd.QuestionData(
+    QuestionData(
       id: 1005,
       category: 'Conversation',
       englishPhrase: 'Thank you for helping me today.',
@@ -646,12 +646,12 @@ class _AssessmentPageState extends State<AssessmentPage> {
     required VisualQuestionMode mode,
     required String title,
   }) {
-    final List<qd.QuestionData> questions;
+    final List<QuestionData> questions;
     if (difficulty == 'Hard') {
       questions = _hardSentencePrompts;
     } else {
       questions =
-          qd.allQuestions.where((q) => q.difficulty == difficulty).toList();
+          allQuestions.where((q) => q.difficulty == difficulty).toList();
     }
 
     if (questions.isEmpty) {

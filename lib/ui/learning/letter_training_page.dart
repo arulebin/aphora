@@ -25,12 +25,19 @@ class LetterTrainingPage extends StatefulWidget {
 }
 
 class _LetterTrainingPageState extends State<LetterTrainingPage> {
+  /// Drills are short prompts, often a single Tamil grapheme. STT engines
+  /// are unreliable on such short utterances, so we accept a much lower
+  /// similarity threshold here than the main pages do.
+  static const double _drillPassThreshold = 55.0;
+
   late final SpeechService _speech;
   late final List<_DrillItem> _items;
 
   int _index = 0;
   bool _isListening = false;
   bool _evaluating = false;
+  bool _hasAttempted = false;
+  String _spokenText = '';
   PronunciationAnalysis? _lastResult;
 
   @override
@@ -63,6 +70,7 @@ class _LetterTrainingPageState extends State<LetterTrainingPage> {
     setState(() {
       _isListening = true;
       _lastResult = null;
+      _spokenText = '';
     });
 
     try {
@@ -75,6 +83,7 @@ class _LetterTrainingPageState extends State<LetterTrainingPage> {
       setState(() {
         _isListening = false;
         _evaluating = true;
+        _spokenText = spoken;
       });
 
       final result = TextEvaluator.analyze(item.drill.prompt, spoken);
@@ -83,12 +92,15 @@ class _LetterTrainingPageState extends State<LetterTrainingPage> {
       setState(() {
         _evaluating = false;
         _lastResult = result;
+        _hasAttempted = true;
       });
 
-      // Auto-advance on a clean pronunciation; otherwise let the
-      // patient try again or move on manually.
-      if (result.isCorrect) {
-        Future.delayed(const Duration(seconds: 1), () {
+      // Auto-advance only on a strong pass. STT on a single Tamil
+      // grapheme often comes back noisy, so the threshold here is
+      // looser than the main pages — and the patient can always tap
+      // the prominent Next button to move on regardless.
+      if (_passes(result, item.drill.prompt, spoken)) {
+        Future.delayed(const Duration(milliseconds: 800), () {
           if (mounted) _next();
         });
       }
@@ -101,11 +113,26 @@ class _LetterTrainingPageState extends State<LetterTrainingPage> {
     }
   }
 
+  /// Lenient pass check for drill prompts: the prompt itself appearing
+  /// inside the spoken text counts (handles the common case where STT
+  /// transcribes a longer hesitation around the target sound), and a
+  /// 55%-similarity floor catches cleaner attempts.
+  bool _passes(PronunciationAnalysis result, String prompt, String spoken) {
+    if (result.isCorrect) return true;
+    if (result.similarity >= _drillPassThreshold) return true;
+    final p = prompt.trim().toLowerCase();
+    final s = spoken.trim().toLowerCase();
+    if (p.isEmpty || s.isEmpty) return false;
+    return s.contains(p);
+  }
+
   void _next() {
     if (_index < _items.length - 1) {
       setState(() {
         _index++;
         _lastResult = null;
+        _spokenText = '';
+        _hasAttempted = false;
       });
     } else {
       Navigator.of(context).pop(true);
@@ -213,39 +240,90 @@ class _LetterTrainingPageState extends State<LetterTrainingPage> {
             const SizedBox(height: 24),
             if (_lastResult != null) _buildResultBanner(_lastResult!),
             const Spacer(),
-            ElevatedButton.icon(
-              onPressed: _isListening || _evaluating ? null : _record,
-              icon: Icon(_isListening ? Icons.graphic_eq : Icons.mic),
-              label: Text(
-                _isListening
-                    ? 'Listening…'
-                    : _evaluating
-                        ? 'Checking…'
-                        : 'Record',
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _isListening
-                    ? Colors.redAccent
-                    : const Color(0xFF6366F1),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+            // Primary action depends on whether the patient has tried
+            // this drill yet. First attempt shows Record; after that
+            // we surface a clear Next so they're never stuck.
+            if (_hasAttempted) ...[
+              ElevatedButton.icon(
+                onPressed: _isListening || _evaluating ? null : _next,
+                icon: Icon(
+                  _index < _items.length - 1
+                      ? Icons.arrow_forward
+                      : Icons.check,
                 ),
-                textStyle: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
+                label: Text(
+                  _index < _items.length - 1
+                      ? 'Next drill'
+                      : 'Finish training',
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 10),
-            TextButton(
-              onPressed: _isListening || _evaluating ? null : _skip,
-              child: Text(
-                _index < _items.length - 1 ? 'Skip' : 'Finish',
-                style: const TextStyle(color: Color(0xFF64748B)),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _isListening || _evaluating ? null : _record,
+                icon: Icon(_isListening ? Icons.graphic_eq : Icons.replay),
+                label: Text(
+                  _isListening
+                      ? 'Listening…'
+                      : _evaluating
+                          ? 'Checking…'
+                          : 'Try again',
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF6366F1),
+                  side: const BorderSide(color: Color(0xFF6366F1)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
               ),
-            ),
+            ] else ...[
+              ElevatedButton.icon(
+                onPressed: _isListening || _evaluating ? null : _record,
+                icon: Icon(_isListening ? Icons.graphic_eq : Icons.mic),
+                label: Text(
+                  _isListening
+                      ? 'Listening…'
+                      : _evaluating
+                          ? 'Checking…'
+                          : 'Record',
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isListening
+                      ? Colors.redAccent
+                      : const Color(0xFF6366F1),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: _isListening || _evaluating ? null : _skip,
+                child: Text(
+                  _index < _items.length - 1 ? 'Skip' : 'Finish',
+                  style: const TextStyle(color: Color(0xFF64748B)),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -253,8 +331,15 @@ class _LetterTrainingPageState extends State<LetterTrainingPage> {
   }
 
   Widget _buildResultBanner(PronunciationAnalysis r) {
-    final ok = r.isCorrect;
-    final color = ok ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+    final item = _items[_index];
+    final passed = _passes(r, item.drill.prompt, _spokenText);
+    final color =
+        passed ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+    final headline = passed
+        ? 'Nice — clear pronunciation!'
+        : _spokenText.trim().isEmpty
+            ? "We couldn't hear you"
+            : 'Close — tap Next to continue or Try Again';
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -264,24 +349,24 @@ class _LetterTrainingPageState extends State<LetterTrainingPage> {
       ),
       child: Row(
         children: [
-          Icon(ok ? Icons.check_circle : Icons.refresh, color: color),
+          Icon(passed ? Icons.check_circle : Icons.refresh, color: color),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  ok ? 'Nice — clear pronunciation!' : 'Try again',
+                  headline,
                   style: TextStyle(
                     color: color,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                if (r.actualNormalized.isNotEmpty)
+                if (_spokenText.trim().isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      'You said: "${r.actualNormalized}"',
+                      'You said: "$_spokenText"',
                       style: const TextStyle(
                         fontSize: 12,
                         color: Color(0xFF475569),

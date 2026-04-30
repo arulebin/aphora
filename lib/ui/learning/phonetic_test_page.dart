@@ -12,13 +12,17 @@ class PhoneticTestPage extends StatefulWidget {
 }
 
 class _PhoneticTestPageState extends State<PhoneticTestPage> {
-  // Each task has a Tamil reference phrase, an audio asset for playback,
-  // and the language locale used for speech recognition.
+  // Each task has a Tamil reference phrase, a romanized version, and
+  // an audio asset for playback. We keep both transcriptions because
+  // device STT engines are inconsistent — some return Tamil graphemes,
+  // others romanise the speech, so we match against whichever scores
+  // higher (same approach as the visual learning page).
   final List<Map<String, String>> _tasks = const [
     {
       'id': 'phonetic_vannakam',
       'title': 'Vanakkam',
       'titleTamil': 'வணக்கம்',
+      'roman': 'vanakkam',
       'subtitle': 'Greeting in Tamil',
       'asset': 'assets/vannakam.wav',
       'language': 'ta-IN',
@@ -27,6 +31,7 @@ class _PhoneticTestPageState extends State<PhoneticTestPage> {
       'id': 'phonetic_saptirgala',
       'title': 'Saptirgala',
       'titleTamil': 'சாப்பிட்டீர்களா',
+      'roman': 'saptittiirgala',
       'subtitle': 'Have you eaten?',
       'asset': 'assets/saptiya.wav',
       'language': 'ta-IN',
@@ -35,6 +40,7 @@ class _PhoneticTestPageState extends State<PhoneticTestPage> {
       'id': 'phonetic_epadi',
       'title': 'Epadi irukkindrirgal',
       'titleTamil': 'எப்படி இருக்கிறீர்கள்',
+      'roman': 'eppadi irukkindrirgal',
       'subtitle': 'How are you?',
       'asset': 'assets/epdi.wav',
       'language': 'ta-IN',
@@ -86,7 +92,8 @@ class _PhoneticTestPageState extends State<PhoneticTestPage> {
                       title: task['titleTamil'] ?? task['title']!,
                       subtitle: task['subtitle']!,
                       assetPath: task['asset']!,
-                      expectedPhrase: task['titleTamil']!,
+                      expectedTamil: task['titleTamil']!,
+                      expectedRoman: task['roman']!,
                       language: task['language'] ?? 'ta-IN',
                     ),
                   ),
@@ -106,9 +113,13 @@ class PhoneticTaskDetailPage extends StatefulWidget {
   final String subtitle;
   final String assetPath;
 
-  /// The phrase the patient is expected to say (matches what STT
-  /// will be compared against).
-  final String expectedPhrase;
+  /// The phrase the patient is expected to say in Tamil script.
+  final String expectedTamil;
+
+  /// Romanised version of [expectedTamil]. Used as a second comparison
+  /// target for STT engines that return Latin output for Tamil speech.
+  final String expectedRoman;
+
   final String language;
 
   const PhoneticTaskDetailPage({
@@ -117,7 +128,8 @@ class PhoneticTaskDetailPage extends StatefulWidget {
     required this.title,
     required this.subtitle,
     required this.assetPath,
-    required this.expectedPhrase,
+    required this.expectedTamil,
+    required this.expectedRoman,
     this.language = 'ta-IN',
   });
 
@@ -133,6 +145,8 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
   bool _isListening = false;
   bool _isEvaluating = false;
   PronunciationAnalysis? _result;
+  String _spokenText = '';
+  bool _heardSomething = false;
   String? _errorMessage;
 
   @override
@@ -170,12 +184,19 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
   }
 
   Future<void> _speakViaTts() async {
-    // Fallback / supplement to the recorded reference: speak the phrase
-    // through TTS so the patient can hear a synthesised version too.
     await _speechService.speakText(
-      widget.expectedPhrase,
+      widget.expectedTamil,
       language: widget.language,
     );
+  }
+
+  /// Run the analyzer against both the Tamil script and the romanised
+  /// transliteration; return whichever scores higher. STT may emit
+  /// either depending on locale availability.
+  PronunciationAnalysis _bestAnalysis(String spoken) {
+    final tamil = TextEvaluator.analyze(widget.expectedTamil, spoken);
+    final roman = TextEvaluator.analyze(widget.expectedRoman, spoken);
+    return tamil.similarity >= roman.similarity ? tamil : roman;
   }
 
   Future<void> _startListening() async {
@@ -185,6 +206,8 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
       _isListening = true;
       _errorMessage = null;
       _result = null;
+      _spokenText = '';
+      _heardSomething = false;
     });
 
     try {
@@ -197,9 +220,24 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
       setState(() {
         _isListening = false;
         _isEvaluating = true;
+        _spokenText = spoken;
+        _heardSomething = spoken.trim().isNotEmpty;
       });
 
-      final result = TextEvaluator.analyze(widget.expectedPhrase, spoken);
+      // Empty STT response — usually means the patient was silent or
+      // the mic permission/engine is misconfigured. Don't display 0%.
+      if (!_heardSomething) {
+        if (!mounted) return;
+        setState(() {
+          _isEvaluating = false;
+          _result = null;
+          _errorMessage =
+              "We couldn't hear you. Make sure the mic is on and try again.";
+        });
+        return;
+      }
+
+      final result = _bestAnalysis(spoken);
 
       if (!mounted) return;
       setState(() {
@@ -222,7 +260,13 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
           MaterialPageRoute(
             builder: (_) => LetterTrainingPage(
               letters: result.mispronouncedLetters,
-              language: widget.language,
+              // Use the script that scored higher (so we drill the
+              // right alphabet — Tamil graphemes vs Latin letters).
+              language: result.expectedNormalized == widget.expectedRoman
+                  .toLowerCase()
+                  .trim()
+                  ? 'en-US'
+                  : widget.language,
             ),
           ),
         );
@@ -265,13 +309,23 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
               ),
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 6),
+            Text(
+              widget.expectedRoman,
+              style: const TextStyle(
+                fontSize: 16,
+                fontStyle: FontStyle.italic,
+                color: Colors.indigo,
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 10),
             Text(
               widget.subtitle,
-              style: const TextStyle(fontSize: 20, color: Colors.grey),
+              style: const TextStyle(fontSize: 18, color: Colors.grey),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -302,7 +356,7 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
 
             _buildResultPanel(),
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 30),
 
             GestureDetector(
               onTap: _isEvaluating ? null : _startListening,
@@ -329,7 +383,7 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             Text(
               _isEvaluating
                   ? "Analyzing your pronunciation..."
@@ -341,7 +395,7 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 30),
           ],
         ),
       ),
@@ -380,10 +434,17 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.orange),
         ),
-        child: Text(
-          _errorMessage!,
-          style: const TextStyle(fontSize: 14, color: Colors.deepOrange),
-          textAlign: TextAlign.center,
+        child: Row(
+          children: [
+            const Icon(Icons.mic_off, color: Colors.deepOrange),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _errorMessage!,
+                style: const TextStyle(fontSize: 14, color: Colors.deepOrange),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -431,11 +492,11 @@ class _PhoneticTaskDetailPageState extends State<PhoneticTaskDetailPage> {
               ),
             ],
           ),
-          if (result.actualNormalized.isNotEmpty)
+          if (_spokenText.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                'You said: "${result.actualNormalized}"',
+                'You said: "$_spokenText"',
                 style: const TextStyle(fontSize: 12, color: Colors.black54),
               ),
             ),
