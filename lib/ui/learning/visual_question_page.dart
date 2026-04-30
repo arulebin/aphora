@@ -468,7 +468,7 @@ class _VisualQuestionPageState extends State<VisualQuestionPage> {
           ),
           const SizedBox(height: 6),
           Text(
-            question.englishPhrase,
+            "${question.tamilPhrase}: ${question.englishPhrase}",
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
