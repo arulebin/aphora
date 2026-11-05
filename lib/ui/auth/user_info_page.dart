@@ -1,376 +1,193 @@
+import 'package:aphora/data/database_service/user_database_service.dart';
+import 'package:aphora/logic/comfort_settings.dart';
+import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
-import 'package:aphora/main.dart';
+import 'package:aphora/ui/auth/auth_shell.dart';
+import 'package:aphora/ui/design/components.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+/// Step 2 of 2: about the patient. Creates the account.
 class UserInfoPage extends StatefulWidget {
+  const UserInfoPage({super.key, required this.phone, required this.password});
+
   final String phone;
   final String password;
 
-  const UserInfoPage({super.key, required this.phone, required this.password});
-
   @override
-  _UserInfoPageState createState() => _UserInfoPageState();
+  State<UserInfoPage> createState() => _UserInfoPageState();
 }
 
 class _UserInfoPageState extends State<UserInfoPage> {
-  final nameController = TextEditingController();
-  final ageController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
+  final _form = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _age = TextEditingController();
+  String? _gender;
+  String _who = 'patient';
+  String _type = 'Not sure';
+  String? _severity;
+  bool _loading = false;
+  String? _error;
 
-  String gender = 'Male';
-  String role = 'patient';
-  String aphasiaType = 'Broca';
-  String severity = 'mild';
+  @override
+  void dispose() {
+    _name.dispose();
+    _age.dispose();
+    super.dispose();
+  }
 
-  // For role selection card UI
-  final roles = [
-    {'value': 'patient', 'label': 'Patient', 'icon': Icons.person_outline},
-    {
-      'value': 'caregiver',
-      'label': 'Caregiver',
-      'icon': Icons.favorite_outline,
-    },
-  ];
-
-  final severities = [
-    {'value': 'mild', 'label': 'Mild', 'color': DuoColors.green},
-    {'value': 'moderate', 'label': 'Moderate', 'color': DuoColors.yellow},
-    {'value': 'severe', 'label': 'Severe', 'color': DuoColors.red},
-  ];
+  Future<void> _create() async {
+    if (widget.phone.isEmpty) {
+      context.go('/signup'); // Deep-linked without step 1.
+      return;
+    }
+    if (!_form.currentState!.validate()) return;
+    if (_gender == null || _severity == null) {
+      setState(() => _error = tr('Please answer every question above.',
+          'மேலே உள்ள அனைத்துக் கேள்விகளுக்கும் பதிலளிக்கவும்.'));
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await Locator.userDatabaseService.signUp(
+        phone: widget.phone,
+        password: widget.password,
+        name: _name.text.trim(),
+        age: int.tryParse(_age.text.trim()) ?? 0,
+        gender: _gender!,
+        aphasiaType: _type,
+        severityLevel: _severity!,
+      );
+      // A caregiver setting up for someone usually practises alongside them.
+      if (_who == 'caregiver') {
+        ComfortSettings.instance.assistedMode.value = true;
+      }
+      if (mounted) context.go('/home');
+    } on AuthFailure catch (e) {
+      setState(() => _error = e.message);
+    } catch (_) {
+      setState(() => _error = tr('Could not create the account. Please try again.',
+          'கணக்கை உருவாக்க முடியவில்லை.'));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: DuoColors.surface,
-      appBar: AppBar(
-        backgroundColor: DuoColors.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: DuoColors.textLight,
+    return AuthShell(
+      title: tr('About the patient', 'நோயாளியைப் பற்றி'),
+      subtitle: tr('Step 2 of 2 · This helps us pick the right exercises.',
+          'படி 2/2 · சரியான பயிற்சிகளைத் தேர்ந்தெடுக்க உதவும்.'),
+      footer: [
+        Center(
+          child: AphButton.ghost(
+            label: tr('Back', 'பின் செல்'),
+            icon: Icons.arrow_back_rounded,
+            onPressed: () => context.go('/signup'),
           ),
-          onPressed: () => context.pop(),
         ),
-        title: Text('Set up your profile', style: DuoTextStyles.body),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 8),
-                const StepDots(total: 3, current: 2),
-                const SizedBox(height: 28),
-
-                // Avatar + name area
-                Center(
-                  child: Stack(
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: DuoColors.greenLight,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: DuoColors.green, width: 3),
-                        ),
-                        child: const Icon(
-                          Icons.person,
-                          color: DuoColors.green,
-                          size: 40,
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          width: 26,
-                          height: 26,
-                          decoration: BoxDecoration(
-                            color: DuoColors.green,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: const Icon(
-                            Icons.camera_alt,
-                            color: Colors.white,
-                            size: 13,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                Text('Your details', style: DuoTextStyles.heading),
-                const SizedBox(height: 4),
-                Text(
-                  'Tell us a bit about yourself.',
-                  style: DuoTextStyles.label,
-                ),
-                const SizedBox(height: 16),
-
-                DuoTextField(
-                  controller: nameController,
-                  label: 'Full name',
-                  prefixIcon: Icons.badge_outlined,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your full name';
-                    }
-                    return null;
-                  },
-                ),
-
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: DuoTextField(
-                        controller: ageController,
-                        label: 'Age',
-                        prefixIcon: Icons.cake_outlined,
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Required';
-                          }
-                          if (int.tryParse(value) == null) {
-                            return 'Invalid';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 4,
-                      child: DuoDropdown(
-                        value: gender,
-                        items: ['Male', 'Female', 'Other'],
-                        onChanged: (v) => setState(() => gender = v!),
-                        label: 'Gender',
-                        icon: Icons.wc_outlined,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-                Text('I am a...', style: DuoTextStyles.heading),
-                const SizedBox(height: 12),
-
-                // Role card selector
-                Row(
-                  children: roles.map((r) {
-                    final selected = role == r['value'];
-                    return Expanded(
-                      child: GestureDetector(
-                        onTap: () =>
-                            setState(() => role = r['value'] as String),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? DuoColors.greenLight
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: selected
-                                  ? DuoColors.green
-                                  : DuoColors.border,
-                              width: 2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: selected
-                                    ? DuoColors.greenDark
-                                    : DuoColors.border,
-                                offset: const Offset(0, 3),
-                                blurRadius: 0,
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(
-                                r['icon'] as IconData,
-                                color: selected
-                                    ? DuoColors.green
-                                    : DuoColors.textLight,
-                                size: 28,
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                r['label'] as String,
-                                style: DuoTextStyles.label.copyWith(
-                                  color: selected
-                                      ? DuoColors.greenDark
-                                      : DuoColors.textLight,
-                                  fontSize: 12,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-
-                const SizedBox(height: 24),
-                Text('Aphasia details', style: DuoTextStyles.heading),
-                const SizedBox(height: 4),
-                Text(
-                  'This helps us personalise your lessons.',
-                  style: DuoTextStyles.label,
-                ),
-                const SizedBox(height: 12),
-
-                DuoDropdown(
-                  value: aphasiaType,
-                  items: ['Broca', 'Wernicke', 'Global'],
-                  onChanged: (v) => setState(() => aphasiaType = v!),
-                  label: 'Aphasia type',
-                  icon: Icons.psychology_outlined,
-                ),
-
-                const SizedBox(height: 16),
-                Text(
-                  'Severity',
-                  style: DuoTextStyles.label.copyWith(fontSize: 13),
-                ),
-                const SizedBox(height: 10),
-
-                // Severity pill selector
-                Row(
-                  children: severities.map((s) {
-                    final selected = severity == s['value'];
-                    final c = s['color'] as Color;
-                    return Expanded(
-                      child: GestureDetector(
-                        onTap: () =>
-                            setState(() => severity = s['value'] as String),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? c.withOpacity(0.15)
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(
-                              color: selected ? c : DuoColors.border,
-                              width: 2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: selected
-                                    ? c.withOpacity(0.4)
-                                    : DuoColors.border,
-                                offset: const Offset(0, 3),
-                                blurRadius: 0,
-                              ),
-                            ],
-                          ),
-                          child: Text(
-                            s['label'] as String,
-                            style: DuoTextStyles.label.copyWith(
-                              color: selected ? c : DuoColors.textLight,
-                              fontSize: 13,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-
-                const SizedBox(height: 36),
-                DuoButton(
-                  label: _isLoading
-                      ? "Creating account..."
-                      : "LET'S START LEARNING!",
-                  onPressed: _isLoading
-                      ? () {}
-                      : () async {
-                          if (!_formKey.currentState!.validate()) return;
-
-                          final name = nameController.text.trim();
-                          final age =
-                              int.tryParse(ageController.text.trim()) ?? 0;
-
-                          setState(() => _isLoading = true);
-
-                          try {
-                            print("📱 Starting signup process...");
-                            final user = await Locator.userDatabaseService
-                                .signUp(
-                                  phone: widget.phone,
-                                  password: widget.password,
-                                  name: name,
-                                  age: age,
-                                  gender: gender,
-                                  aphasiaType: aphasiaType,
-                                  severityLevel: severity,
-                                  role: role,
-                                );
-
-                            if (user != null) {
-                              print(
-                                "✅ Signup successful! Navigating to pre-assessment...",
-                              );
-                              if (mounted) {
-                                context.go('/pre-assessment');
-                              }
-                            } else {
-                              print("❌ Signup returned null");
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Failed to create account. Please try again.',
-                                    ),
-                                  ),
-                                );
-                              }
-                            }
-                          } catch (e) {
-                            print("❌ Signup exception: $e");
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Error: ${e.toString()}'),
-                                  duration: const Duration(seconds: 5),
-                                ),
-                              );
-                            }
-                          } finally {
-                            if (mounted) {
-                              setState(() => _isLoading = false);
-                            }
-                          }
-                        },
-                ),
-                const SizedBox(height: 32),
+      ],
+      children: [
+        Form(
+          key: _form,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const StepProgress(current: 2, total: 2),
+              const Gap(AphSpace.lg),
+              ChoiceGroup<String>(
+                label: tr('Who is filling this in?', 'யார் இதை நிரப்புகிறார்?'),
+                options: [
+                  ('patient', tr('The patient', 'நோயாளி'), Icons.person_rounded),
+                  ('caregiver', tr('A caregiver / helper', 'பராமரிப்பாளர்'), Icons.volunteer_activism_rounded),
+                ],
+                value: _who,
+                onChanged: (v) => setState(() => _who = v),
+              ),
+              const Gap(AphSpace.lg),
+              AphTextField(
+                controller: _name,
+                label: tr("Patient's name", 'நோயாளியின் பெயர்'),
+                icon: Icons.badge_rounded,
+                textCapitalization: TextCapitalization.words,
+                validator: (v) => (v ?? '').trim().length < 2
+                    ? tr('Please enter a name.', 'பெயரை உள்ளிடவும்.')
+                    : null,
+              ),
+              const Gap(AphSpace.md),
+              AphTextField(
+                controller: _age,
+                label: tr('Age', 'வயது'),
+                icon: Icons.cake_rounded,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(3),
+                ],
+                validator: (v) {
+                  final n = int.tryParse(v ?? '');
+                  return n == null || n < 5 || n > 110
+                      ? tr('Enter an age between 5 and 110.', '5 முதல் 110 வரை வயதை உள்ளிடவும்.')
+                      : null;
+                },
+              ),
+              const Gap(AphSpace.lg),
+              ChoiceGroup<String>(
+                label: tr('Gender', 'பாலினம்'),
+                options: [
+                  ('Male', tr('Male', 'ஆண்'), null),
+                  ('Female', tr('Female', 'பெண்'), null),
+                  ('Other', tr('Other', 'மற்றவை'), null),
+                ],
+                value: _gender,
+                onChanged: (v) => setState(() => _gender = v),
+              ),
+              const Gap(AphSpace.lg),
+              ChoiceGroup<String>(
+                label: tr('Type of aphasia', 'அஃபேசியா வகை'),
+                helper: tr('Your doctor or therapist may have told you. "Not sure" is fine.',
+                    'தெரியாவிட்டால் "தெரியவில்லை" தேர்ந்தெடுக்கவும்.'),
+                options: [
+                  ('Not sure', tr('Not sure', 'தெரியவில்லை'), null),
+                  ('Broca', 'Broca', null),
+                  ('Wernicke', 'Wernicke', null),
+                  ('Anomic', 'Anomic', null),
+                  ('Global', 'Global', null),
+                ],
+                value: _type,
+                onChanged: (v) => setState(() => _type = v),
+              ),
+              const Gap(AphSpace.lg),
+              ChoiceGroup<String>(
+                label: tr('How hard is speaking right now?', 'இப்போது பேசுவது எவ்வளவு கடினம்?'),
+                options: [
+                  ('mild', tr('A little', 'கொஞ்சம்'), null),
+                  ('moderate', tr('Quite hard', 'கடினம்'), null),
+                  ('severe', tr('Very hard', 'மிகக் கடினம்'), null),
+                ],
+                value: _severity,
+                onChanged: (v) => setState(() => _severity = v),
+              ),
+              if (_error != null) ...[
+                const Gap(AphSpace.md),
+                FeedbackBanner(tone: FeedbackTone.error, title: _error!),
               ],
-            ),
+              const Gap(AphSpace.lg),
+              AphButton(
+                label: tr('Create account', 'கணக்கை உருவாக்கு'),
+                icon: Icons.check_rounded,
+                loading: _loading,
+                onPressed: _create,
+              ),
+            ],
           ),
         ),
-      ),
+      ],
     );
   }
 }

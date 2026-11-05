@@ -40,8 +40,41 @@ class UserModel {
     return result;
   }
 
-  // Caregiver/Therapist linkage
+  /// Total scored attempts (sessionsCompleted counts finished sessions).
+  /// Older documents lack it, so it falls back to sessionsCompleted.
+  final int totalAttempts;
+
+  /// Latest placement test result, 0–100, and when it was taken.
+  final double? preAssessmentScore;
+  final DateTime? preAssessmentDate;
+
+  /// 'letters' | 'words' | 'sentences' — what the placement test suggests.
+  final String? recommendedFocus;
+
+  /// A short note the linked therapist leaves for the patient/caregiver.
+  final String? therapistNote;
+
+  // Caregiver/Therapist linkage (holds the therapist's 6-char code).
   String? linkedCaregiverId;
+
+  bool get hasTherapist =>
+      linkedCaregiverId != null && linkedCaregiverId!.isNotEmpty;
+
+  /// Consecutive days (ending today or yesterday) with at least one exercise.
+  int get streakDays {
+    var day = DateTime.now();
+    String k(DateTime d) =>
+        '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    if ((dailyActivity[k(day)] ?? 0) == 0) {
+      day = day.subtract(const Duration(days: 1));
+    }
+    var streak = 0;
+    while ((dailyActivity[k(day)] ?? 0) > 0) {
+      streak++;
+      day = day.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
   // Metadata
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -65,9 +98,15 @@ class UserModel {
     this.averageFluency = 0.0,
     Map<String, int>? dailyActivity,
     this.linkedCaregiverId,
+    int? totalAttempts,
+    this.preAssessmentScore,
+    this.preAssessmentDate,
+    this.recommendedFocus,
+    this.therapistNote,
     required this.createdAt,
     required this.updatedAt,
-  }) : dailyActivity = dailyActivity ?? <String, int>{};
+  }) : dailyActivity = dailyActivity ?? <String, int>{},
+       totalAttempts = totalAttempts ?? sessionsCompleted;
 
   // Convert to Map (for Firebase)
   Map<String, dynamic> toMap() {
@@ -90,6 +129,11 @@ class UserModel {
       'averageFluency': averageFluency,
       'dailyActivity': dailyActivity,
       'linkedCaregiverId': linkedCaregiverId,
+      'totalAttempts': totalAttempts,
+      'preAssessmentScore': preAssessmentScore,
+      'preAssessmentDate': preAssessmentDate?.toIso8601String(),
+      'recommendedFocus': recommendedFocus,
+      'therapistNote': therapistNote,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -119,6 +163,13 @@ class UserModel {
           ) ??
           <String, int>{},
       linkedCaregiverId: map['linkedCaregiverId'],
+      totalAttempts: (map['totalAttempts'] as num?)?.toInt(),
+      preAssessmentScore: (map['preAssessmentScore'] as num?)?.toDouble(),
+      preAssessmentDate: DateTime.tryParse(
+        map['preAssessmentDate']?.toString() ?? '',
+      ),
+      recommendedFocus: map['recommendedFocus'] as String?,
+      therapistNote: map['therapistNote'] as String?,
       createdAt: DateTime.parse(
         map['createdAt'] ?? DateTime.now().toIso8601String(),
       ),
@@ -147,6 +198,11 @@ class UserModel {
     double? averageFluency,
     Map<String, int>? dailyActivity,
     String? linkedCaregiverId,
+    int? totalAttempts,
+    double? preAssessmentScore,
+    DateTime? preAssessmentDate,
+    String? recommendedFocus,
+    String? therapistNote,
     DateTime? updatedAt,
   }) {
     return UserModel(
@@ -168,6 +224,11 @@ class UserModel {
       averageFluency: averageFluency ?? this.averageFluency,
       dailyActivity: dailyActivity ?? this.dailyActivity,
       linkedCaregiverId: linkedCaregiverId ?? this.linkedCaregiverId,
+      totalAttempts: totalAttempts ?? this.totalAttempts,
+      preAssessmentScore: preAssessmentScore ?? this.preAssessmentScore,
+      preAssessmentDate: preAssessmentDate ?? this.preAssessmentDate,
+      recommendedFocus: recommendedFocus ?? this.recommendedFocus,
+      therapistNote: therapistNote ?? this.therapistNote,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );

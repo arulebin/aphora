@@ -57,7 +57,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCU6dkOpI0VtzuAsDoLumRrK7_kfEoRxug',
-    appId: '1:143136098291:android:4e093b6b9cf36087b63486',
+    appId: '1:143136098291:android:8d892201806786d4b63486',
     messagingSenderId: '143136098291',
     projectId: 'aphora-b2392',
     storageBucket: 'aphora-b2392.firebasestorage.app',
@@ -65,10 +65,10 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyB1a4nvo_YbpuCB264T8w6Q9af7M5CQmUM',
-    appId: '1:143136098291:ios:c3610836992136cab63486',
+    appId: '1:143136098291:ios:74847f26734e483bb63486',
     messagingSenderId: '143136098291',
     projectId: 'aphora-b2392',
     storageBucket: 'aphora-b2392.firebasestorage.app',
-    iosBundleId: 'com.example.aphora',
+    iosBundleId: 'com.thodar.app',
   );
 }

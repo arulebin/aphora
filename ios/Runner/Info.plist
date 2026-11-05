@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Aphora</string>
+	<string>Vernacura</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>aphora</string>
+	<string>vernacura</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Vernacura listens to your spoken answers during speech exercises and video calls with your therapist.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Vernacura turns your spoken answers into text to check your pronunciation.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Vernacura uses the camera for video calls with your therapist.</string>
 </dict>
 </plist>

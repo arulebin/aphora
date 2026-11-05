@@ -7,9 +7,47 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:143136098291:android:d5e11bfc25782d89b63486",
+        "android_client_info": {
+          "package_name": "com.aphora.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCU6dkOpI0VtzuAsDoLumRrK7_kfEoRxug"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:143136098291:android:4e093b6b9cf36087b63486",
         "android_client_info": {
           "package_name": "com.example.aphora"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCU6dkOpI0VtzuAsDoLumRrK7_kfEoRxug"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:143136098291:android:8d892201806786d4b63486",
+        "android_client_info": {
+          "package_name": "com.thodar.app"
         }
       },
       "oauth_client": [],

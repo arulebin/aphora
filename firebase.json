@@ -4,7 +4,7 @@
       "android": {
         "default": {
           "projectId": "aphora-b2392",
-          "appId": "1:143136098291:android:4e093b6b9cf36087b63486",
+          "appId": "1:143136098291:android:8d892201806786d4b63486",
           "fileOutput": "android/app/google-services.json"
         }
       },
@@ -12,8 +12,8 @@
         "lib/firebase_options.dart": {
           "projectId": "aphora-b2392",
           "configurations": {
-            "android": "1:143136098291:android:4e093b6b9cf36087b63486",
-            "ios": "1:143136098291:ios:c3610836992136cab63486",
+            "android": "1:143136098291:android:8d892201806786d4b63486",
+            "ios": "1:143136098291:ios:74847f26734e483bb63486",
             "web": "1:143136098291:web:16103c165af2368bb63486"
           }
         }
@@ -33,5 +33,23 @@
         "destination": "/index.html"
       }
     ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "auth": {
+      "host": "127.0.0.1",
+      "port": 9099
+    },
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8080
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true
   }
 }

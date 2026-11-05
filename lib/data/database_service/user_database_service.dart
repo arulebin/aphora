@@ -1,31 +1,57 @@
-import 'package:aphora/data/models/usermodel.dart';
+import 'package:aphora/data/models/practice_record.dart';
 import 'package:aphora/data/models/therapist_model.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:aphora/data/models/usermodel.dart';
+import 'package:aphora/logic/comfort_settings.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+
+/// Thrown with a message that is safe to show to the user.
+class AuthFailure implements Exception {
+  AuthFailure(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
 
 class UserDatabaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  ValueNotifier<UserModel?> currentUser = ValueNotifier(null);
-  ValueNotifier<TherapistModel?> currentTherapist = ValueNotifier(null);
+  final ValueNotifier<UserModel?> currentUser = ValueNotifier(null);
+  final ValueNotifier<TherapistModel?> currentTherapist = ValueNotifier(null);
 
-  final String userCollection = "users";
-  final String therapistCollection = "therapists";
+  final String userCollection = 'users';
+  final String therapistCollection = 'therapists';
 
-  /// Convert phone → email
-  String _phoneToEmail(String phone) {
-    return "$phone@aphora.com";
-  }
+  // Phone numbers are mapped to synthetic e-mails so Firebase email/password
+  // auth can be used without SMS costs. Patients and therapists live in
+  // separate e-mail domains so one phone can hold both roles.
+  String _phoneToEmail(String phone) => '$phone@aphora.com';
+  String _therapistEmail(String phone) => '$phone@aphorat.com';
 
-  String _therapistEmail(String phone) {
-    return "$phone@aphorat.com";
-  }
+  static String _authMessage(FirebaseAuthException e) => switch (e.code) {
+        'email-already-in-use' =>
+          'An account with this phone number already exists. Please sign in.',
+        'invalid-credential' ||
+        'wrong-password' ||
+        'user-not-found' ||
+        'invalid-email' =>
+          'Phone number or password is incorrect.',
+        'weak-password' => 'Please choose a password of at least 6 characters.',
+        'network-request-failed' =>
+          'No internet connection. Please check and try again.',
+        'too-many-requests' =>
+          'Too many attempts. Please wait a minute and try again.',
+        _ => 'Could not sign in (${e.code}). Please try again.',
+      };
 
-  /// =========================
-  /// 🔐 SIGN UP
-  /// =========================
-  Future<UserModel?> signUp({
+  // ── Patients ──────────────────────────────────────────────────────────
+
+  /// Creates the Auth user and the Firestore profile. If the profile write
+  /// fails the Auth user is deleted again, so no orphan accounts remain.
+  /// Duplicate phones are caught by Auth (`email-already-in-use`) rather
+  /// than an unauthenticated Firestore query, which security rules block.
+  Future<UserModel> signUp({
     required String phone,
     required String password,
     required String name,
@@ -35,337 +61,365 @@ class UserDatabaseService {
     required String severityLevel,
     String role = 'patient',
   }) async {
+    UserCredential cred;
     try {
-      final email = _phoneToEmail(phone);
-      print("🔐 Starting signup for: $email");
-
-      // 🔥 Check if user already exists in DB (by phone)
-      print("🔍 Checking if user exists...");
-      final existing = await _db
-          .collection(userCollection)
-          .where('phoneNumber', isEqualTo: phone)
-          .limit(1)
-          .get();
-
-      if (existing.docs.isNotEmpty) {
-        throw Exception("User with this phone already exists");
-      }
-
-      // Create Firebase Auth user
-      print("🔐 Creating Firebase Auth user...");
-      final cred = await _auth.createUserWithEmailAndPassword(
-        email: email,
+      cred = await _auth.createUserWithEmailAndPassword(
+        email: _phoneToEmail(phone),
         password: password,
       );
-
-      final firebaseUser = cred.user;
-      if (firebaseUser == null) {
-        throw Exception("Failed to create auth user");
-      }
-
-      print("✅ Auth user created: ${firebaseUser.uid}");
-
-      // Create UserModel
-      final newUser = UserModel(
-        uid: firebaseUser.uid,
-        name: name,
-        email: email,
-        phoneNumber: phone,
-        role: role,
-        age: age,
-        gender: gender,
-        languagePreference: "Tamil",
-        aphasiaType: aphasiaType,
-        severityLevel: severityLevel,
-        goals: [],
-        sessionsCompleted: 0,
-        progressScore: 0,
-        completedExercises: [],
-        averageAccuracy: 0.0,
-        averageFluency: 0.0,
-        linkedCaregiverId: '',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      // Save to Firestore
-      print("💾 Saving user to Firestore...");
+    } on FirebaseAuthException catch (e) {
+      throw AuthFailure(_authMessage(e));
+    }
+    final firebaseUser = cred.user!;
+    final now = DateTime.now();
+    final lang = ComfortSettings.instance.language.value.name == 'english'
+        ? 'English'
+        : 'Tamil';
+    final newUser = UserModel(
+      uid: firebaseUser.uid,
+      name: name,
+      email: _phoneToEmail(phone),
+      phoneNumber: phone,
+      role: role,
+      age: age,
+      gender: gender,
+      languagePreference: lang,
+      aphasiaType: aphasiaType,
+      severityLevel: severityLevel,
+      goals: const [],
+      sessionsCompleted: 0,
+      progressScore: 0,
+      completedExercises: const [],
+      linkedCaregiverId: '',
+      createdAt: now,
+      updatedAt: now,
+    );
+    try {
       await _db
           .collection(userCollection)
           .doc(firebaseUser.uid)
           .set(newUser.toMap());
-      currentUser.value = newUser;
-      print("✅ User successfully created and saved!");
-      return newUser;
-    } on FirebaseAuthException catch (e) {
-      print("❌ Firebase Auth Error: ${e.code} - ${e.message}");
-      rethrow;
     } catch (e) {
-      print("❌ Signup Error: $e");
-      rethrow;
+      try {
+        await firebaseUser.delete();
+      } catch (_) {}
+      throw AuthFailure(
+        'Your account could not be saved. Please check your connection and try again.',
+      );
     }
+    currentUser.value = newUser;
+    return newUser;
   }
 
-  /// =========================
-  /// 🔐 LOGIN
-  /// =========================
-  Future<UserModel?> login({
+  Future<UserModel> login({
     required String phone,
     required String password,
   }) async {
+    UserCredential cred;
     try {
-      final email = _phoneToEmail(phone);
-
-      // Firebase Auth login
-      final cred = await _auth.signInWithEmailAndPassword(
-        email: email,
+      cred = await _auth.signInWithEmailAndPassword(
+        email: _phoneToEmail(phone),
         password: password,
       );
-
-      final firebaseUser = cred.user;
-      if (firebaseUser == null) return null;
-
-      // 🔥 Ensure user exists in Firestore
-      final doc = await _db
-          .collection(userCollection)
-          .doc(firebaseUser.uid)
-          .get();
-
-      if (!doc.exists) {
-        throw Exception("User exists in Auth but not in DB");
-      }
-
-      currentUser.value = UserModel.fromMap(doc.data()!);
-      return UserModel.fromMap(doc.data()!);
-    } catch (e) {
-      print("Login Error: $e");
-      return null;
+    } on FirebaseAuthException catch (e) {
+      throw AuthFailure(_authMessage(e));
     }
+    final doc =
+        await _db.collection(userCollection).doc(cred.user!.uid).get();
+    if (!doc.exists) {
+      await _auth.signOut();
+      throw AuthFailure(
+        'We found your login but not your profile. Please create the account again.',
+      );
+    }
+    final user = UserModel.fromMap(doc.data()!);
+    currentUser.value = user;
+    return user;
   }
 
-  /// =========================
-  /// 🔄 RESTORE SESSION (ON STARTUP)
-  /// =========================
   Future<bool> restoreSession() async {
-    // Wait for the auth state to be resolved from local storage
     final firebaseUser = await _auth.authStateChanges().first;
     if (firebaseUser == null) return false;
-
     try {
-      // Check if it's a patient
-      final userDoc = await _db.collection(userCollection).doc(firebaseUser.uid).get();
+      final userDoc =
+          await _db.collection(userCollection).doc(firebaseUser.uid).get();
       if (userDoc.exists) {
         currentUser.value = UserModel.fromMap(userDoc.data()!);
         return true;
       }
-
-      // Check if it's a therapist
-      final therapistDoc = await _db.collection(therapistCollection).doc(firebaseUser.uid).get();
+      final therapistDoc = await _db
+          .collection(therapistCollection)
+          .doc(firebaseUser.uid)
+          .get();
       if (therapistDoc.exists) {
-        currentTherapist.value = TherapistModel.fromMap(therapistDoc.data()!, therapistDoc.id);
+        currentTherapist.value =
+            TherapistModel.fromMap(therapistDoc.data()!, therapistDoc.id);
         return true;
       }
     } catch (e) {
-      print("Error restoring session: $e");
+      debugPrint('Error restoring session: $e');
     }
     return false;
   }
 
-  /// =========================
-  /// 👤 GET CURRENT USER
-  /// =========================
-  Future<UserModel?> getCurrentUser() async {
-    final firebaseUser = _auth.currentUser;
-    if (firebaseUser == null) return null;
-
-    final doc = await _db
-        .collection(userCollection)
-        .doc(firebaseUser.uid)
-        .get();
-
+  Future<UserModel?> refreshCurrentUser() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return null;
+    final doc = await _db.collection(userCollection).doc(uid).get();
     if (!doc.exists) return null;
-
-    return UserModel.fromMap(doc.data()!);
+    final user = UserModel.fromMap(doc.data()!);
+    currentUser.value = user;
+    return user;
   }
 
-  /// =========================
-  /// 🔄 UPDATE USER
-  /// =========================
   Future<void> updateUser(UserModel user) async {
     await _db.collection(userCollection).doc(user.uid).update(user.toMap());
+    if (currentUser.value?.uid == user.uid) currentUser.value = user;
   }
 
-  /// Record a single exercise/test attempt and update the patient's
-  /// rolling analytics (sessions, average accuracy, daily activity, etc.).
-  ///
-  /// [accuracy] / [fluency] are 0-100 percentages. [taskId] is added to the
-  /// `completedExercises` set so the same exercise isn't double-counted in
-  /// the legacy progress lists, but every attempt still increments
-  /// `sessionsCompleted` and the daily activity bucket so practice volume
-  /// (not unique tasks) drives the homepage chart.
+  /// Links the signed-in patient to a therapist by code. Returns the
+  /// therapist, or null when the code doesn't exist.
+  Future<TherapistModel?> linkTherapist(String rawCode) async {
+    final code = rawCode.trim().toUpperCase();
+    final user = currentUser.value;
+    if (user == null || code.isEmpty) return null;
+    final therapist = await getTherapistByCode(code);
+    if (therapist == null) return null;
+    await updateUser(user.copyWith(linkedCaregiverId: code));
+    return therapist;
+  }
+
+  Future<void> unlinkTherapist() async {
+    final user = currentUser.value;
+    if (user == null) return;
+    await _db
+        .collection(userCollection)
+        .doc(user.uid)
+        .update({'linkedCaregiverId': ''});
+    final updated = user.copyWith(updatedAt: DateTime.now());
+    updated.linkedCaregiverId = '';
+    currentUser.value = updated;
+  }
+
+  Future<void> setLanguagePreference(String language) async {
+    final user = currentUser.value;
+    if (user == null) return;
+    await updateUser(user.copyWith(languagePreference: language));
+  }
+
+  /// Records one scored answer: rolling averages, daily activity and an
+  /// attempt document for the therapist. Does NOT count a session — call
+  /// [recordSession] once when the patient finishes (previously every
+  /// attempt, even an empty one, bumped `sessionsCompleted`).
   Future<UserModel?> recordExerciseResult({
     required String taskId,
     required double accuracy,
     double? fluency,
+    String category = 'practice',
+    String target = '',
+    String spoken = '',
+    String method = 'device',
+    bool assisted = false,
   }) async {
     final user = currentUser.value;
     if (user == null) return null;
 
-    final clampedAccuracy = accuracy.clamp(0.0, 100.0).toDouble();
-    final clampedFluency = (fluency ?? clampedAccuracy).clamp(0.0, 100.0).toDouble();
+    final acc = accuracy.clamp(0.0, 100.0).toDouble();
+    final flu = (fluency ?? acc).clamp(0.0, 100.0).toDouble();
+    final prior = user.totalAttempts;
+    final n = prior + 1;
+    double rolling(double old, double next) =>
+        prior <= 0 ? next : ((old * prior) + next) / n;
 
-    final priorSessions = user.sessionsCompleted;
-    final newSessions = priorSessions + 1;
+    final key = dayKey(DateTime.now());
+    final activity = Map<String, int>.from(user.dailyActivity)
+      ..update(key, (v) => v + 1, ifAbsent: () => 1);
+    final exercises = {...user.completedExercises, taskId}.toList();
 
-    double rollingAverage(double prior, double next) {
-      if (priorSessions <= 0) return next;
-      return ((prior * priorSessions) + next) / newSessions;
-    }
-
-    final newAccuracy = rollingAverage(user.averageAccuracy, clampedAccuracy);
-    final newFluency = rollingAverage(user.averageFluency, clampedFluency);
-    // Progress score is bounded 0-100 and biased toward recent accuracy.
-    final newProgress =
-        ((user.progressScore * 0.7) + (clampedAccuracy * 0.3)).clamp(0.0, 100.0);
-
-    final today = DateTime.now();
-    final key =
-        '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-    final updatedActivity = Map<String, int>.from(user.dailyActivity);
-    updatedActivity[key] = (updatedActivity[key] ?? 0) + 1;
-
-    final updatedExercises = List<String>.from(user.completedExercises);
-    if (!updatedExercises.contains(taskId)) {
-      updatedExercises.add(taskId);
-    }
-
-    final updated = UserModel(
-      uid: user.uid,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      age: user.age,
-      gender: user.gender,
-      phoneNumber: user.phoneNumber,
-      languagePreference: user.languagePreference,
-      aphasiaType: user.aphasiaType,
-      severityLevel: user.severityLevel,
-      goals: user.goals,
-      sessionsCompleted: newSessions,
-      progressScore: newProgress,
-      completedExercises: updatedExercises,
-      averageAccuracy: newAccuracy,
-      averageFluency: newFluency,
-      dailyActivity: updatedActivity,
-      linkedCaregiverId: user.linkedCaregiverId,
-      createdAt: user.createdAt,
-      updatedAt: DateTime.now(),
+    final updated = user.copyWith(
+      totalAttempts: n,
+      averageAccuracy: rolling(user.averageAccuracy, acc),
+      averageFluency: rolling(user.averageFluency, flu),
+      progressScore:
+          ((user.progressScore * 0.8) + (acc * 0.2)).clamp(0.0, 100.0),
+      dailyActivity: activity,
+      completedExercises: exercises,
     );
 
-    await _db.collection(userCollection).doc(user.uid).update(updated.toMap());
+    final ref = _db.collection(userCollection).doc(user.uid);
+    final batch = _db.batch()
+      ..update(ref, {
+        'totalAttempts': updated.totalAttempts,
+        'averageAccuracy': updated.averageAccuracy,
+        'averageFluency': updated.averageFluency,
+        'progressScore': updated.progressScore,
+        'dailyActivity': updated.dailyActivity,
+        'completedExercises': updated.completedExercises,
+        'updatedAt': DateTime.now().toIso8601String(),
+      })
+      ..set(
+        ref.collection('attempts').doc(),
+        AttemptRecord(
+          taskId: taskId,
+          category: category,
+          target: target,
+          spoken: spoken,
+          score: acc,
+          method: method,
+          assisted: assisted,
+          createdAt: DateTime.now(),
+        ).toMap(),
+      );
+    await batch.commit();
     currentUser.value = updated;
     return updated;
   }
 
-  /// =========================
-  /// 🚪 LOGOUT
-  /// =========================
+  Future<void> recordSession(SessionRecord session) async {
+    final user = currentUser.value;
+    if (user == null) return;
+    final ref = _db.collection(userCollection).doc(user.uid);
+    final batch = _db.batch()
+      ..set(ref.collection('sessions').doc(), session.toMap())
+      ..update(ref, {'sessionsCompleted': FieldValue.increment(1)});
+    await batch.commit();
+    currentUser.value =
+        user.copyWith(sessionsCompleted: user.sessionsCompleted + 1);
+  }
+
+  Future<void> savePreAssessment({
+    required double score,
+    required String recommendedFocus,
+  }) async {
+    final user = currentUser.value;
+    if (user == null) return;
+    final now = DateTime.now();
+    await _db.collection(userCollection).doc(user.uid).update({
+      'preAssessmentScore': score,
+      'preAssessmentDate': now.toIso8601String(),
+      'recommendedFocus': recommendedFocus,
+    });
+    currentUser.value = user.copyWith(
+      preAssessmentScore: score,
+      preAssessmentDate: now,
+      recommendedFocus: recommendedFocus,
+    );
+  }
+
+  Future<List<AttemptRecord>> getRecentAttempts(
+    String uid, {
+    int limit = 30,
+  }) async {
+    final snap = await _db
+        .collection(userCollection)
+        .doc(uid)
+        .collection('attempts')
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .get();
+    return snap.docs
+        .map((d) => AttemptRecord.fromMap(d.id, d.data()))
+        .toList()
+        .reversed
+        .toList();
+  }
+
+  Future<List<SessionRecord>> getRecentSessions(
+    String uid, {
+    int limit = 20,
+  }) async {
+    final snap = await _db
+        .collection(userCollection)
+        .doc(uid)
+        .collection('sessions')
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .get();
+    return snap.docs
+        .map((d) => SessionRecord.fromMap(d.id, d.data()))
+        .toList();
+  }
+
   Future<void> logout() async {
     await _auth.signOut();
     currentUser.value = null;
     currentTherapist.value = null;
   }
 
-  /// =========================
-  /// ❌ DELETE USER (optional)
-  /// =========================
   Future<void> deleteUser() async {
     final user = _auth.currentUser;
     if (user == null) return;
-
     await _db.collection(userCollection).doc(user.uid).delete();
     await user.delete();
+    currentUser.value = null;
   }
 
-  /// =========================
-  /// 👨‍⚕️ THERAPIST LOGIN
-  /// =========================
-  Future<TherapistModel?> loginTherapist({
+  // ── Therapists ────────────────────────────────────────────────────────
+
+  /// Signs in an existing therapist. Never creates accounts — the old
+  /// behaviour auto-created a therapist on any failed login, so anyone
+  /// could become a "therapist" and read linked patients.
+  Future<TherapistModel> loginTherapist({
     required String phone,
     required String password,
-    String? name,
   }) async {
+    UserCredential cred;
     try {
-      final email = _therapistEmail(phone);
-      final cred = await _auth.signInWithEmailAndPassword(
-        email: email,
+      cred = await _auth.signInWithEmailAndPassword(
+        email: _therapistEmail(phone),
         password: password,
       );
-
-      final firebaseUser = cred.user;
-      if (firebaseUser == null) return null;
-
-      final doc = await _db
-          .collection(therapistCollection)
-          .doc(firebaseUser.uid)
-          .get();
-
-      if (!doc.exists) {
-        // Automatically create a document if logging in for the time with a dummy password
-        // In a real app we would have a signup for Therapist.
-        final newTherapist = TherapistModel(
-          id: firebaseUser.uid,
-          name: name ?? "Dr. Therapist",
-          phone: phone,
-          code: firebaseUser.uid
-              .substring(0, 6)
-              .toUpperCase(), // Generate random code
-        );
-        await _db
-            .collection(therapistCollection)
-            .doc(firebaseUser.uid)
-            .set(newTherapist.toMap());
-        currentTherapist.value = newTherapist;
-        return newTherapist;
-      }
-
-      final therapist = TherapistModel.fromMap(doc.data()!, doc.id);
-      currentTherapist.value = therapist;
-      return therapist;
-    } catch (e) {
-      print("Therapist Login Error: $e");
-
-      // If it's an invalid-credential error, it usually means the user doesn't exist yet
-      if (e is FirebaseAuthException &&
-          (e.code == 'invalid-credential' || e.code == 'user-not-found')) {
-        print("Auto-creating therapist account...");
-        try {
-          final email = _therapistEmail(phone);
-          final cred = await _auth.createUserWithEmailAndPassword(
-            email: email,
-            password: password,
-          );
-          final firebaseUser = cred.user;
-          if (firebaseUser != null) {
-            final newTherapist = TherapistModel(
-              id: firebaseUser.uid,
-              name: name ?? "Dr. Therapist",
-              phone: phone,
-              code: firebaseUser.uid.substring(0, 6).toUpperCase(),
-            );
-            await _db
-                .collection(therapistCollection)
-                .doc(firebaseUser.uid)
-                .set(newTherapist.toMap());
-            currentTherapist.value = newTherapist;
-            return newTherapist;
-          }
-        } catch (e2) {
-          print("Failed Auto-creating therapist: $e2");
-        }
-      }
-      return null;
+    } on FirebaseAuthException catch (e) {
+      throw AuthFailure(_authMessage(e));
     }
+    final doc = await _db
+        .collection(therapistCollection)
+        .doc(cred.user!.uid)
+        .get();
+    if (!doc.exists) {
+      await _auth.signOut();
+      throw AuthFailure('No therapist profile found for this number.');
+    }
+    final therapist = TherapistModel.fromMap(doc.data()!, doc.id);
+    currentTherapist.value = therapist;
+    return therapist;
+  }
+
+  /// Explicit therapist registration.
+  Future<TherapistModel> registerTherapist({
+    required String phone,
+    required String password,
+    required String name,
+  }) async {
+    UserCredential cred;
+    try {
+      cred = await _auth.createUserWithEmailAndPassword(
+        email: _therapistEmail(phone),
+        password: password,
+      );
+    } on FirebaseAuthException catch (e) {
+      throw AuthFailure(_authMessage(e));
+    }
+    final uid = cred.user!.uid;
+    final therapist = TherapistModel(
+      id: uid,
+      name: name,
+      phone: phone,
+      code: uid.substring(0, 6).toUpperCase(),
+    );
+    try {
+      await _db
+          .collection(therapistCollection)
+          .doc(uid)
+          .set(therapist.toMap());
+    } catch (_) {
+      try {
+        await cred.user!.delete();
+      } catch (_) {}
+      throw AuthFailure('Your account could not be saved. Please try again.');
+    }
+    currentTherapist.value = therapist;
+    return therapist;
   }
 
   Future<List<UserModel>> getTherapistPatients(String code) async {
@@ -373,25 +427,32 @@ class UserDatabaseService {
         .collection(userCollection)
         .where('linkedCaregiverId', isEqualTo: code)
         .get();
-    return snapshot.docs.map((doc) => UserModel.fromMap(doc.data())).toList();
+    final list =
+        snapshot.docs.map((doc) => UserModel.fromMap(doc.data())).toList();
+    list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return list;
+  }
+
+  Future<void> setTherapistNote(String patientUid, String note) async {
+    await _db.collection(userCollection).doc(patientUid).update({
+      'therapistNote': note.trim(),
+    });
   }
 
   Future<TherapistModel?> getTherapistByCode(String code) async {
     try {
       final snapshot = await _db
           .collection(therapistCollection)
-          .where('code', isEqualTo: code)
+          .where('code', isEqualTo: code.trim().toUpperCase())
           .limit(1)
           .get();
-      if (snapshot.docs.isNotEmpty) {
-        return TherapistModel.fromMap(
-          snapshot.docs.first.data(),
-          snapshot.docs.first.id,
-        );
-      }
-      return null;
+      if (snapshot.docs.isEmpty) return null;
+      return TherapistModel.fromMap(
+        snapshot.docs.first.data(),
+        snapshot.docs.first.id,
+      );
     } catch (e) {
-      print("Error getting therapist by code: $e");
+      debugPrint('Error getting therapist by code: $e');
       return null;
     }
   }

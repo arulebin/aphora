@@ -16,10 +16,10 @@ class LanguageService {
   // Translation strings
   static const Map<Language, Map<String, String>> _translations = {
     Language.english: {
-      'app_title': 'Aphora',
+      'app_title': 'Vernacura',
       'hello': 'Hello',
       'how_are_you': 'How are you?',
-      'welcome': 'Welcome to Aphora',
+      'welcome': 'Welcome to Vernacura',
       'select_language': 'Select Language',
       'english': 'English',
       'tamil': 'Tamil',
@@ -77,10 +77,10 @@ class LanguageService {
       'task_conv_3_phrase': 'What is your favorite food?',
     },
     Language.tamil: {
-      'app_title': 'அபோரா',
+      'app_title': 'வெர்னகுரா',
       'hello': 'வணக்கம்',
       'how_are_you': 'நீ எப்படி இருக்கிறாய்?',
-      'welcome': 'அபோராவில் வரவேற்கிறோம்',
+      'welcome': 'வெர்னகுராவுக்கு வரவேற்கிறோம்',
       'select_language': 'மொழி தேர்ந்தெடுக்கவும்',
       'english': 'ஆங்கிலம்',
       'tamil': 'தமிழ்',
@@ -161,3 +161,12 @@ class LanguageService {
     return get(key);
   }
 }
+
+/// Inline bilingual string: `tr('Listen', 'கேளுங்கள்')`. Used for the short,
+/// patient-facing prompts in exercises so they follow the chosen language.
+String tr(String english, String tamil) =>
+    LanguageService.currentLanguage == Language.tamil ? tamil : english;
+
+/// BCP-47 code for TTS/STT in the current app language.
+String get appSpeechLocale =>
+    LanguageService.currentLanguage == Language.tamil ? 'ta-IN' : 'en-IN';

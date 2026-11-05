@@ -1,347 +1,266 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
+import 'package:aphora/logic/comfort_settings.dart';
+import 'package:aphora/logic/language_service.dart';
 import 'package:characters/characters.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show ValueNotifier, debugPrint, kIsWeb;
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
+/// Why a listening attempt ended without words.
+enum ListenFailure { none, unavailable, permissionDenied, noSpeech, error }
+
+/// One app-wide speech engine.
+///
+/// `speech_to_text` is a platform singleton whose `initialize()` only
+/// registers callbacks on the *first* call. The old code created a new
+/// SpeechService per page, so every page after the first never received
+/// "done"/"error" events and sat on "Listening…" until a 12 s timeout.
+/// Now there is exactly one instance; each listen() routes events to the
+/// current attempt's completer.
 class SpeechService {
-  late stt.SpeechToText _speechToText;
-  late FlutterTts _flutterTts;
+  SpeechService._() {
+    _ready = _init();
+  }
+
+  static final SpeechService shared = SpeechService._();
+
+  /// Integration tests only: when set before the app starts, listening
+  /// returns this callback's text instead of using the microphone, and the
+  /// platform recogniser is never initialised (so no permission dialog).
+  static Future<String> Function()? debugListenOverride;
+
+  /// Kept for older call sites: always returns the shared instance.
+  factory SpeechService() => shared;
+
+  static String get appLanguageCode => appSpeechLocale;
+
+  final stt.SpeechToText _stt = stt.SpeechToText();
+  final FlutterTts _tts = FlutterTts();
+  late final Future<void> _ready;
+
+  bool _sttAvailable = false;
   bool _isListening = false;
   String _recognizedText = '';
-  Completer<String>? _listeningCompleter;
+  Completer<String>? _completer;
+  ListenFailure lastFailure = ListenFailure.none;
+  List<stt.LocaleName>? _locales;
 
-  SpeechService() {
-    _speechToText = stt.SpeechToText();
-    _flutterTts = FlutterTts();
-    _initializeSpeech();
-    _initializeTTS();
-  }
+  /// Live partial transcript while listening (for on-screen captions).
+  final partial = ValueNotifier<String>('');
 
-  Future<void> _initializeTTS() async {
-    try {
-      // Initialize TTS engine - rely on default system TTS to prevent DeadObjectException
-      // on certain Android devices that fail when forcing 'com.google.android.tts'
-      /*
-      try {
-        await _flutterTts.setEngine('com.google.android.tts');
-        print('TTS Engine set to: com.google.android.tts');
-      } catch (e) {
-        print('Google TTS not available: $e, using default engine');
-      }
-      */
-      
-      // Set default language
-      await _flutterTts.setLanguage('ta-IN');
-      print('TTS Language set to: ta-IN');
-      
-      // Set audio attributes for better volume
-      await _flutterTts.setVolume(1.0); // Max volume (0.0 - 1.0)
-      await _flutterTts.setSpeechRate(0.5); // Slower rate for clarity (0.0 - 2.0)
-      await _flutterTts.setPitch(1.0); // Normal pitch (0.5 - 2.0)
-      
-      // Set speaking queue mode to flush (immediately play)
-      // Note: setQueueMode is not available on web, so wrap in try-catch
-      try {
-        await _flutterTts.setQueueMode(1); // 1 = flush queue
-        print('TTS Queue mode: FLUSH (immediate playback)');
-      } catch (e) {
-        print('Note: setQueueMode not available on this platform: $e');
-      }
-      
-      print('TTS Initialized successfully - volume:1.0, rate:0.5, pitch:1.0');
-      
-    } catch (e) {
-      print('Error initializing TTS: $e');
-    }
-  }
-
-  Future<void> _initializeSpeech() async {
-    try {
-      bool available = await _speechToText.initialize(
-        onError: (error) {
-          // Browser STT routes audio to Google's servers; ad-blockers, lack of
-          // HTTPS, or DNS filtering surface as `network` errors here. Complete
-          // gracefully with an empty result instead of completeError — the
-          // latter races the timeout chain and bubbles as an Uncaught Error.
-          print('Speech Recognition Error: $error');
-          if (_isListening && !(_listeningCompleter?.isCompleted ?? false)) {
-            _isListening = false;
-            _listeningCompleter?.complete('');
-          }
-        },
-        onStatus: (status) {
-          print('Status: $status');
-          if (status == 'done' || status == 'notListening') {
-            if (_isListening && !(_listeningCompleter?.isCompleted ?? false)) {
-              _isListening = false;
-              _listeningCompleter?.complete(_recognizedText);
-            }
-          }
-        },
-      );
-      print('Speech Recognition Available: $available');
-    } catch (e) {
-      print('Error initializing speech: $e');
-    }
-  }
-
-  Future<void> speakText(String text, {String language = 'ta-IN'}) async {
-    try {
-      if (text.isEmpty) {
-        print('Cannot speak empty text');
-        return;
-      }
-
-      print('═════════════════════════════════════════════');
-      print('SPEAK REQUEST: "$text"');
-      print('Language: $language');
-      print('═════════════════════════════════════════════');
-      
-      // Set language
-      await _flutterTts.setLanguage(language);
-      print('✓ Language set to: $language');
-      
-      // Ensure volume is at max - CRITICAL FOR AUDIO
-      await _flutterTts.setVolume(1.0);
-      print('✓ Volume set to: 1.0 (MAXIMUM)');
-      
-      // Set speech rate for clarity
-      await _flutterTts.setSpeechRate(0.5);
-      print('✓ Speech rate set to: 0.5 (CLEAR & SLOW)');
-      
-      // Set pitch
-      await _flutterTts.setPitch(1.0);
-      print('✓ Pitch set to: 1.0 (NORMAL)');
-      
-      // Set queue mode to flush (play immediately)
-      // Note: setQueueMode is not available on web, so wrap in try-catch
-      try {
-        await _flutterTts.setQueueMode(1);
-        print('✓ Queue mode: FLUSH (immediate playback)');
-      } catch (e) {
-        print('Note: setQueueMode not available on this platform');
-      }
-      
-      // Stop any previous speech to avoid conflicts
-      try {
-        await _flutterTts.stop();
-        print('✓ Stopped any previous speech');
-      } catch (e) {
-        print('Note: Could not stop previous speech: $e');
-      }
-      
-      // Give a small delay between stop and start
-      await Future.delayed(const Duration(milliseconds: 200));
-      
-      // Speak the text - THIS IS THE CRITICAL CALL
-      print('🔊 Initiating speech synthesis...');
-      final result = await _flutterTts.speak(text);
-      
-      print('Speech synthesis result code: $result');
-      print('Result meaning: ${_interpretResultCode(result)}');
-
-      // On web, flutter_tts.speak() returns null (the browser SpeechSynthesis
-      // API is fire-and-forget). Treat null as success on web. Only -1 is a
-      // real failure on any platform.
-      if (result == 1 || (kIsWeb && result == null)) {
-        print('✅ SUCCESS: Speaking started for: "$text"');
-      } else if (result == 0) {
-        print('⚠️  Speech synthesis returned 0 (may still be playing)');
-      } else if (result == -1) {
-        print('❌ ERROR: Failed to start speaking. Result code: $result');
-      } else {
-        print('Speech synthesis returned: $result (treating as success)');
-      }
-      print('═════════════════════════════════════════════');
-    } catch (e) {
-      print('❌ EXCEPTION during speakText: $e');
-      print('Stack trace:');
-      print(StackTrace.current);
-      print('═════════════════════════════════════════════');
-    }
-  }
-  
-  String _interpretResultCode(dynamic code) {
-    if (code == 1) return 'SUCCESS (1): Speech initiated';
-    if (code == 0) return 'NEUTRAL (0): Unknown/May be playing';
-    if (code == -1) return 'ERROR (-1): Synthesis failed';
-    return 'UNKNOWN ($code): Unrecognized code';
-  }
-
-  Future<String> startListening({String language = 'ta-IN', int maxDuration = 10}) async {
-    // Ensure initialization is complete
-    if (!_speechToText.isAvailable) {
-      print('Speech to text not available, reinitializing...');
-      await _initializeSpeech();
-      if (!_speechToText.isAvailable) {
-        print('Speech to text still not available');
-        return '';
-      }
-    }
-
-    if (_isListening) {
-      print('Already listening');
-      return _recognizedText;
-    }
-
-    try {
-      _isListening = true;
-      _recognizedText = '';
-      _listeningCompleter = Completer<String>();
-
-      // Try to get available locales
-      List<stt.LocaleName> locales = [];
-      try {
-        locales = await _speechToText.locales();
-        print('Available locales: ${locales.map((l) => l.localeId).toList()}');
-      } catch (e) {
-        print('Error getting locales: $e');
-      }
-
-      // Try different language codes for Tamil
-      String effectiveLanguage = language;
-      if (locales.isNotEmpty && !locales.any((l) => l.localeId == language)) {
-        // Fallback options for Tamil
-        if (locales.any((l) => l.localeId.startsWith('ta'))) {
-          effectiveLanguage = locales.firstWhere((l) => l.localeId.startsWith('ta')).localeId;
-        } else if (locales.any((l) => l.localeId == 'en-IN')) {
-          effectiveLanguage = 'en-IN'; // Fallback to Indian English
-        } else if (locales.isNotEmpty) {
-          effectiveLanguage = locales.first.localeId; // Use first available
-        }
-      }
-
-      print('Using language: $effectiveLanguage');
-
-      await _speechToText.listen(
-        onResult: (result) {
-          _recognizedText = result.recognizedWords;
-          print('Recognized: $_recognizedText (isFinal: ${result.finalResult})');
-          
-          // Complete immediately if final result
-          if (result.finalResult && !(_listeningCompleter?.isCompleted ?? false)) {
-            _isListening = false;
-            _listeningCompleter?.complete(_recognizedText);
-          }
-        },
-        localeId: effectiveLanguage,
-        listenFor: Duration(seconds: maxDuration),
-        pauseFor: const Duration(seconds: 2),
-        onSoundLevelChange: (level) {
-          print('Sound level: $level');
-        },
-      );
-
-      // Wait with timeout
-      final result = await _listeningCompleter!.future
-          .timeout(
-            Duration(seconds: maxDuration + 2),
-            onTimeout: () {
-              print('Listening timeout, returning: $_recognizedText');
-              _isListening = false;
-              return _recognizedText;
-            },
-          )
-          .catchError((e) {
-            print('Error during listening: $e');
-            _isListening = false;
-            return '';
-          });
-
-      await stopListening();
-      print('Returning result: $result');
-      return result;
-    } catch (e) {
-      print('Error in startListening: $e');
-      _isListening = false;
-      return '';
-    }
-  }
-
-  /// Synthesize [text] to a WAV file on disk and return its path.
-  ///
-  /// Used by the assessment flow to produce a reference audio clip on
-  /// the fly so we don't need a pre-recorded reference for every word
-  /// in the dataset. Returns `null` on platforms where file synthesis
-  /// isn't supported (web, or if the TTS engine refuses).
-  Future<String?> synthesizeToFile(
-    String text, {
-    String language = 'ta-IN',
-  }) async {
-    if (text.trim().isEmpty) return null;
-    if (kIsWeb) return null;
-
-    try {
-      await _flutterTts.setLanguage(language);
-      await _flutterTts.setSpeechRate(0.5);
-      await _flutterTts.setPitch(1.0);
-      await _flutterTts.setVolume(1.0);
-
-      final fileName =
-          'tts_ref_${DateTime.now().millisecondsSinceEpoch}.wav';
-
-      // Android: write into the app documents dir; flutter_tts resolves
-      // relative names against that directory.
-      // iOS: must use an absolute path inside the app sandbox.
-      String? targetPath;
-      try {
-        if (Platform.isIOS) {
-          final dir = await getApplicationDocumentsDirectory();
-          targetPath = '${dir.path}/$fileName';
-        }
-      } catch (_) {
-        targetPath = null;
-      }
-
-      final result = await _flutterTts.synthesizeToFile(
-        text,
-        targetPath ?? fileName,
-      );
-
-      if (result == 1) {
-        if (targetPath != null) return targetPath;
-        // Resolve the Android documents dir to give back a real path.
-        try {
-          final dir = await getApplicationDocumentsDirectory();
-          return '${dir.path}/$fileName';
-        } catch (_) {
-          return fileName;
-        }
-      }
-      return null;
-    } catch (e) {
-      print('synthesizeToFile failed: $e');
-      return null;
-    }
-  }
-
-  Future<void> stopListening() async {
-    if (_isListening) {
-      try {
-        await _speechToText.stop();
-        _isListening = false;
-        print('Stopped listening');
-      } catch (e) {
-        print('Error stopping: $e');
-      }
-    }
-  }
+  /// 0–1 input level while listening (for a level meter).
+  final soundLevel = ValueNotifier<double>(0);
 
   bool get isListening => _isListening;
   String get recognizedText => _recognizedText;
 
-  Future<void> dispose() async {
+  Future<void> _init() async {
     try {
-      await _flutterTts.stop();
-      await stopListening();
+      await _tts.setVolume(1.0);
+      await _tts.setPitch(1.0);
+      if (!kIsWeb) {
+        try {
+          await _tts.setQueueMode(1);
+        } catch (_) {}
+      }
     } catch (e) {
-      print('Error disposing: $e');
+      debugPrint('TTS init failed: $e');
+    }
+    await _initStt();
+  }
+
+  Future<void> _initStt() async {
+    if (debugListenOverride != null) {
+      _sttAvailable = true;
+      return;
+    }
+    try {
+      _sttAvailable = await _stt.initialize(
+        // Without this the plugin asks for "Nearby devices" (Bluetooth)
+        // permission the first time practice starts — alarming for a parent
+        // or an older user, and the app never uses Bluetooth headsets.
+        options: [stt.SpeechToText.androidNoBluetooth],
+        onError: (error) {
+          debugPrint('STT error: ${error.errorMsg}');
+          lastFailure = error.errorMsg.contains('permission')
+              ? ListenFailure.permissionDenied
+              : (error.errorMsg.contains('no_match') ||
+                      error.errorMsg.contains('speech_timeout'))
+                  ? ListenFailure.noSpeech
+                  : ListenFailure.error;
+          _finish();
+        },
+        onStatus: (status) {
+          if (status == 'done' || status == 'notListening') _finish();
+        },
+      );
+    } catch (e) {
+      debugPrint('STT init failed: $e');
+      _sttAvailable = false;
     }
   }
+
+  void _finish() {
+    if (_isListening && !(_completer?.isCompleted ?? true)) {
+      _isListening = false;
+      _completer!.complete(_recognizedText);
+    }
+  }
+
+  // ── Text to speech ────────────────────────────────────────────────────
+
+  Future<void> speakText(String text, {String? language, double? rate}) async {
+    if (text.trim().isEmpty) return;
+    await _ready;
+    try {
+      await _tts.stop();
+      await _tts.setLanguage(language ?? appSpeechLocale);
+      await _tts.setSpeechRate(
+        rate ?? ComfortSettings.instance.speechRate.value,
+      );
+      await _tts.speak(text);
+    } catch (e) {
+      debugPrint('TTS speak failed: $e');
+    }
+  }
+
+  Future<void> stopSpeaking() async {
+    try {
+      await _tts.stop();
+    } catch (_) {}
+  }
+
+  // ── Speech to text ────────────────────────────────────────────────────
+
+  /// Listens for one answer and returns the transcript ('' if nothing was
+  /// understood — check [lastFailure] for why).
+  ///
+  /// Pause and max duration default to the user's comfort settings, which
+  /// are deliberately long: non-fluent aphasic speech has long pauses.
+  Future<String> startListening({
+    String? language,
+    int? maxDuration,
+    int? pauseSeconds,
+  }) async {
+    await _ready;
+    lastFailure = ListenFailure.none;
+    final fake = debugListenOverride;
+    if (fake != null) {
+      final heard = (await fake()).trim();
+      partial.value = heard;
+      if (heard.isEmpty) lastFailure = ListenFailure.noSpeech;
+      return heard;
+    }
+    if (!_sttAvailable) {
+      await _initStt();
+      if (!_sttAvailable) {
+        lastFailure = ListenFailure.unavailable;
+        return '';
+      }
+    }
+    if (_isListening) await stopListening();
+    await stopSpeaking();
+
+    final settings = ComfortSettings.instance;
+    final maxSec = maxDuration ?? settings.listenMaxSeconds.value;
+    final pauseSec = pauseSeconds ?? settings.listenPauseSeconds.value;
+    final wanted = language ?? appSpeechLocale;
+
+    _isListening = true;
+    _recognizedText = '';
+    partial.value = '';
+    soundLevel.value = 0;
+    _completer = Completer<String>();
+
+    try {
+      _locales ??= await _stt.locales();
+    } catch (_) {
+      _locales = const [];
+    }
+    final locales = _locales!;
+    var localeId = wanted;
+    if (locales.isNotEmpty && !locales.any((l) => l.localeId == wanted)) {
+      final prefix = wanted.split('-').first;
+      final match = locales.where((l) => l.localeId.startsWith(prefix));
+      if (match.isNotEmpty) localeId = match.first.localeId;
+    }
+
+    try {
+      await _stt.listen(
+        onResult: (r) {
+          _recognizedText = r.recognizedWords;
+          partial.value = r.recognizedWords;
+          if (r.finalResult) _finish();
+        },
+        localeId: localeId,
+        listenFor: Duration(seconds: maxSec),
+        pauseFor: Duration(seconds: pauseSec),
+        onSoundLevelChange: (level) {
+          // Platform levels are roughly -2..10 dB; normalise to 0..1.
+          soundLevel.value = ((level + 2) / 12).clamp(0.0, 1.0);
+        },
+        listenOptions: stt.SpeechListenOptions(
+          partialResults: true,
+          cancelOnError: true,
+          listenMode: stt.ListenMode.dictation,
+        ),
+      );
+    } catch (e) {
+      debugPrint('STT listen failed: $e');
+      _isListening = false;
+      lastFailure = ListenFailure.error;
+      return '';
+    }
+
+    final result = await _completer!.future.timeout(
+      Duration(seconds: maxSec + 3),
+      onTimeout: () {
+        _isListening = false;
+        return _recognizedText;
+      },
+    );
+    await stopListening();
+    if (result.trim().isEmpty && lastFailure == ListenFailure.none) {
+      lastFailure = ListenFailure.noSpeech;
+    }
+    soundLevel.value = 0;
+    return result.trim();
+  }
+
+  Future<void> stopListening() async {
+    try {
+      await _stt.stop();
+    } catch (_) {}
+    _finish();
+  }
+
+  /// Pages call this on dispose; the shared engine stays alive, we only
+  /// stop whatever is in progress.
+  Future<void> dispose() async {
+    await stopSpeaking();
+    if (_isListening) await stopListening();
+  }
+
+  /// Human-readable reason for an empty answer.
+  String failureMessage() => switch (lastFailure) {
+        ListenFailure.unavailable => tr(
+            'Speech recognition is not available on this device. You can type the answer instead.',
+            'இந்த சாதனத்தில் பேச்சு அறிதல் இல்லை. பதிலை தட்டச்சு செய்யலாம்.',
+          ),
+        ListenFailure.permissionDenied => tr(
+            'Vernacura needs microphone permission. Please allow it in your phone settings.',
+            'மைக்ரோஃபோன் அனுமதி தேவை. தொலைபேசி அமைப்புகளில் அனுமதிக்கவும்.',
+          ),
+        ListenFailure.noSpeech => tr(
+            "I didn't hear anything. Hold the phone closer and try again.",
+            'எதுவும் கேட்கவில்லை. தொலைபேசியை அருகில் வைத்து மீண்டும் முயலவும்.',
+          ),
+        _ => tr(
+            'Something went wrong while listening. Please try again.',
+            'கேட்கும்போது பிழை. மீண்டும் முயலவும்.',
+          ),
+      };
 }
 
 /// Detailed result of comparing what the patient said against the

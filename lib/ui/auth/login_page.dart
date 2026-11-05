@@ -1,5 +1,10 @@
+import 'package:aphora/data/database_service/user_database_service.dart';
+import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
+import 'package:aphora/ui/auth/auth_shell.dart';
+import 'package:aphora/ui/design/components.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 class LoginPage extends StatefulWidget {
@@ -10,258 +15,109 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final phoneController = TextEditingController();
-  final passwordController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
+  final _form = GlobalKey<FormState>();
+  final _phone = TextEditingController();
+  final _password = TextEditingController();
+  bool _loading = false;
+  String? _error;
 
   @override
   void dispose() {
-    phoneController.dispose();
-    passwordController.dispose();
+    _phone.dispose();
+    _password.dispose();
     super.dispose();
   }
 
-  void _login() async {
-    if (!_formKey.currentState!.validate()) return;
-    final phone = phoneController.text.trim();
-    final password = passwordController.text;
-
-    setState(() => _isLoading = true);
+  Future<void> _login() async {
+    if (!_form.currentState!.validate()) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
-      final user = await Locator.userDatabaseService.login(phone: phone, password: password);
-      if (user != null) {
-        if (mounted) context.go('/home');
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Invalid credentials. Please try again.')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
-      }
+      await Locator.userDatabaseService.login(
+        phone: normalisePhone(_phone.text),
+        password: _password.text,
+      );
+      TextInput.finishAutofillContext();
+      if (mounted) context.go('/home');
+    } on AuthFailure catch (e) {
+      setState(() => _error = e.message);
+    } catch (_) {
+      setState(() => _error = tr('Could not sign in. Check your internet and try again.',
+          'உள்நுழைய முடியவில்லை.'));
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // App Logo / Header
-                  const Icon(Icons.health_and_safety_outlined, size: 64, color: Color(0xFF1E88E5)),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Aphora',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1E293B),
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Clinical Speech Recovery',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 48),
-
-                  // Login Form
-                  Container(
-                    padding: const EdgeInsets.all(24.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.03),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Welcome Back',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF1E293B),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Please enter your details to sign in.',
-                          style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Phone Field
-                        TextFormField(
-                          controller: phoneController,
-                          keyboardType: TextInputType.phone,
-                          decoration: InputDecoration(
-                            labelText: 'Phone Number',
-                            labelStyle: const TextStyle(color: Color(0xFF64748B)),
-                            prefixIcon: const Icon(Icons.phone_outlined, color: Color(0xFF94A3B8)),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFF1E88E5), width: 2),
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF8FAFC),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) return 'Please enter your phone number';
-                            if (value.trim().length < 10) return 'Enter a valid phone number';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Password Field
-                        TextFormField(
-                          controller: passwordController,
-                          obscureText: true,
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            labelStyle: const TextStyle(color: Color(0xFF64748B)),
-                            prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF94A3B8)),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFF1E88E5), width: 2),
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF8FAFC),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) return 'Please enter your password';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Login Button
-                        SizedBox(
-                          width: double.infinity,
-                          height: 50,
-                          child: ElevatedButton(
-                            onPressed: _isLoading ? null : _login,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1E88E5),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: _isLoading
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                  )
-                                : const Text(
-                                    'Sign In',
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                                  ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Sign Up Link
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text(
-                        "Don't have an account?",
-                        style: TextStyle(color: Color(0xFF64748B)),
-                      ),
-                      TextButton(
-                        onPressed: () => context.go('/signup'),
-                        child: const Text(
-                          'Sign up',
-                          style: TextStyle(
-                            color: Color(0xFF1E88E5),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 8),
-
-                  // Therapist Login Link
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text(
-                        "Are you a therapist?",
-                        style: TextStyle(color: Color(0xFF64748B)),
-                      ),
-                      TextButton(
-                        onPressed: () => context.go('/therapist'),
-                        child: const Text(
-                          'Therapist Portal',
-                          style: TextStyle(
-                            color: Color(0xFF0F766E), // Teal for therapist
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+    return AuthShell(
+      title: tr('Welcome back', 'மீண்டும் வருக'),
+      subtitle: tr('Sign in to continue your practice.', 'பயிற்சியைத் தொடர உள்நுழையுங்கள்.'),
+      footer: [
+        AphButton.secondary(
+          label: tr('Create a new account', 'புதிய கணக்கு உருவாக்கு'),
+          icon: Icons.person_add_alt_1_rounded,
+          onPressed: () => context.go('/signup'),
+        ),
+        const Gap(AphSpace.sm),
+        Center(
+          child: AphButton.ghost(
+            label: tr('I am a therapist', 'நான் சிகிச்சையாளர்'),
+            icon: Icons.medical_services_outlined,
+            onPressed: () => context.go('/therapist'),
+          ),
+        ),
+      ],
+      children: [
+        AutofillGroup(
+          child: Form(
+            key: _form,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AphTextField(
+                  controller: _phone,
+                  label: tr('Mobile number', 'மொபைல் எண்'),
+                  hint: '98765 43210',
+                  icon: Icons.phone_rounded,
+                  keyboardType: TextInputType.phone,
+                  autofillHints: const [AutofillHints.telephoneNumberNational],
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9 ]')),
+                    LengthLimitingTextInputFormatter(12),
+                  ],
+                  validator: validatePhone,
+                ),
+                const Gap(AphSpace.md),
+                AphTextField(
+                  controller: _password,
+                  label: tr('Password', 'கடவுச்சொல்'),
+                  icon: Icons.lock_rounded,
+                  obscure: true,
+                  autofillHints: const [AutofillHints.password],
+                  textInputAction: TextInputAction.done,
+                  validator: validatePassword,
+                  onSubmitted: (_) => _login(),
+                ),
+                if (_error != null) ...[
+                  const Gap(AphSpace.md),
+                  FeedbackBanner(tone: FeedbackTone.error, title: _error!),
                 ],
-              ),
+                const Gap(AphSpace.lg),
+                AphButton(
+                  label: tr('Sign in', 'உள்நுழை'),
+                  icon: Icons.login_rounded,
+                  loading: _loading,
+                  onPressed: _login,
+                ),
+              ],
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

@@ -17,6 +17,11 @@ class BookingModel {
     this.status = 'pending',
   });
 
+  bool get isUpcoming => dateTime.isAfter(DateTime.now());
+
+  /// Private video room shared only by this patient and therapist.
+  String get callChannel => 'aphora_${therapistId}_$patientId';
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -34,7 +39,10 @@ class BookingModel {
       patientId: json['patientId'] ?? '',
       patientName: json['patientName'] ?? 'Unknown Patient',
       therapistId: json['therapistId'] ?? '',
-      dateTime: (json['dateTime'] as Timestamp).toDate(),
+      dateTime: json['dateTime'] is Timestamp
+          ? (json['dateTime'] as Timestamp).toDate()
+          : DateTime.tryParse(json['dateTime']?.toString() ?? '') ??
+              DateTime.now(),
       status: json['status'] ?? 'pending',
     );
   }

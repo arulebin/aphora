@@ -1,7 +1,13 @@
+import 'package:aphora/data/database_service/user_database_service.dart';
 import 'package:aphora/logic/locator.dart';
+import 'package:aphora/ui/auth/auth_shell.dart';
+import 'package:aphora/ui/design/components.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+/// Therapist sign-in and explicit registration (no more silent
+/// auto-creation on a failed login).
 class TherapistLoginPage extends StatefulWidget {
   const TherapistLoginPage({super.key});
 
@@ -10,193 +16,135 @@ class TherapistLoginPage extends StatefulWidget {
 }
 
 class _TherapistLoginPageState extends State<TherapistLoginPage> {
-  final _phoneController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _nameController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
+  final _form = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
+  final _password = TextEditingController();
+  bool _register = false;
+  bool _loading = false;
+  String? _error;
 
   @override
   void dispose() {
-    _phoneController.dispose();
-    _passwordController.dispose();
-    _nameController.dispose();
+    _name.dispose();
+    _phone.dispose();
+    _password.dispose();
     super.dispose();
   }
 
-  Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
+  Future<void> _submit() async {
+    if (!_form.currentState!.validate()) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final db = Locator.userDatabaseService;
     try {
-      final therapist = await Locator.userDatabaseService.loginTherapist(
-        phone: _phoneController.text.trim(),
-        password: _passwordController.text,
-        name: _nameController.text.trim().isEmpty
-            ? null
-            : _nameController.text.trim(),
-      );
-      if (!mounted) return;
-      if (therapist != null) {
-        context.go('/therapist_dashboard');
+      if (_register) {
+        await db.registerTherapist(
+          phone: normalisePhone(_phone.text),
+          password: _password.text,
+          name: _name.text.trim(),
+        );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Therapist login failed.')),
+        await db.loginTherapist(
+          phone: normalisePhone(_phone.text),
+          password: _password.text,
         );
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
-      }
+      if (mounted) context.go('/therapist_dashboard');
+    } on AuthFailure catch (e) {
+      setState(() => _error = e.message);
+    } catch (_) {
+      setState(() => _error = 'Something went wrong. Please try again.');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new,
-              color: Color(0xFF64748B), size: 20),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/login');
-            }
-          },
-        ),
-      ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Icon(Icons.medical_services_outlined,
-                      size: 64, color: Color(0xFF0F766E)),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Therapist Portal',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1E293B),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Sign in or create your therapist account.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF64748B), fontSize: 14),
-                  ),
-                  const SizedBox(height: 32),
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.03),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        TextFormField(
-                          controller: _nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Name (only for first sign-in)',
-                            prefixIcon: Icon(Icons.badge_outlined),
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          decoration: const InputDecoration(
-                            labelText: 'Phone Number',
-                            prefixIcon: Icon(Icons.phone_outlined),
-                            border: OutlineInputBorder(),
-                          ),
-                          validator: (v) {
-                            if (v == null || v.trim().length < 10) {
-                              return 'Enter a valid phone number';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Password',
-                            prefixIcon: Icon(Icons.lock_outline),
-                            border: OutlineInputBorder(),
-                          ),
-                          validator: (v) {
-                            if (v == null || v.length < 6) {
-                              return 'Min 6 characters';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          height: 50,
-                          child: ElevatedButton(
-                            onPressed: _isLoading ? null : _login,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0F766E),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: _isLoading
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                        color: Colors.white, strokeWidth: 2),
-                                  )
-                                : const Text('Continue',
-                                    style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  TextButton(
-                    onPressed: () => context.go('/login'),
-                    child: const Text('Back to patient login'),
-                  ),
-                ],
-              ),
-            ),
+    return AuthShell(
+      title: 'Therapist portal',
+      subtitle: 'Follow your patients’ home practice and meet them on video.',
+      footer: [
+        Center(
+          child: AphButton.ghost(
+            label: 'Back to patient sign in',
+            icon: Icons.arrow_back_rounded,
+            onPressed: () => context.go('/login'),
           ),
         ),
-      ),
+      ],
+      children: [
+        SegmentedButton<bool>(
+          segments: const [
+            ButtonSegment(value: false, label: Text('Sign in'), icon: Icon(Icons.login_rounded)),
+            ButtonSegment(value: true, label: Text('Register'), icon: Icon(Icons.person_add_rounded)),
+          ],
+          selected: {_register},
+          onSelectionChanged: (s) => setState(() {
+            _register = s.first;
+            _error = null;
+          }),
+          style: const ButtonStyle(
+            minimumSize: WidgetStatePropertyAll(Size(0, 52)),
+          ),
+        ),
+        const Gap(AphSpace.lg),
+        Form(
+          key: _form,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_register) ...[
+                AphTextField(
+                  controller: _name,
+                  label: 'Full name',
+                  hint: 'Dr. Priya Raman',
+                  icon: Icons.badge_rounded,
+                  textCapitalization: TextCapitalization.words,
+                  validator: (v) =>
+                      (v ?? '').trim().length < 2 ? 'Please enter your name.' : null,
+                ),
+                const Gap(AphSpace.md),
+              ],
+              AphTextField(
+                controller: _phone,
+                label: 'Mobile number',
+                icon: Icons.phone_rounded,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9 ]')),
+                  LengthLimitingTextInputFormatter(12),
+                ],
+                validator: validatePhone,
+              ),
+              const Gap(AphSpace.md),
+              AphTextField(
+                controller: _password,
+                label: 'Password',
+                icon: Icons.lock_rounded,
+                obscure: true,
+                textInputAction: TextInputAction.done,
+                validator: validatePassword,
+                onSubmitted: (_) => _submit(),
+              ),
+              if (_error != null) ...[
+                const Gap(AphSpace.md),
+                FeedbackBanner(tone: FeedbackTone.error, title: _error!),
+              ],
+              const Gap(AphSpace.lg),
+              AphButton(
+                label: _register ? 'Create therapist account' : 'Sign in',
+                icon: _register ? Icons.check_rounded : Icons.login_rounded,
+                loading: _loading,
+                onPressed: _submit,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

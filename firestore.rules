@@ -1,0 +1,56 @@
+rules_version = '2';
+// Aphora Firestore rules. NOT deployed automatically — review, then:
+//   firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isTherapist() {
+      return signedIn() && exists(/databases/$(db)/documents/therapists/$(request.auth.uid));
+    }
+    function myCode() {
+      return get(/databases/$(db)/documents/therapists/$(request.auth.uid)).data.code;
+    }
+    // The patient doc's linkedCaregiverId holds the therapist's share code.
+    function linkedTo(patientUid) {
+      return isTherapist() &&
+        get(/databases/$(db)/documents/users/$(patientUid)).data.linkedCaregiverId == myCode();
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid ||
+                     (isTherapist() && resource.data.linkedCaregiverId == myCode()));
+      allow create, update, delete: if signedIn() && request.auth.uid == uid;
+      // A linked therapist may only change the note field.
+      allow update: if linkedTo(uid) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['therapistNote']);
+
+      match /attempts/{id} {
+        allow read: if signedIn() && (request.auth.uid == uid || linkedTo(uid));
+        allow create: if signedIn() && request.auth.uid == uid;
+      }
+      match /sessions/{id} {
+        allow read: if signedIn() && (request.auth.uid == uid || linkedTo(uid));
+        allow create: if signedIn() && request.auth.uid == uid;
+      }
+    }
+
+    match /therapists/{tid} {
+      // Patients look therapists up by code to link.
+      allow read: if signedIn();
+      allow create, update: if signedIn() && request.auth.uid == tid &&
+        request.resource.data.keys().hasOnly(['name', 'phone', 'code']);
+    }
+
+    match /bookings/{id} {
+      allow read: if signedIn() && (resource.data.patientId == request.auth.uid ||
+                     (isTherapist() && resource.data.therapistId == myCode()));
+      allow create: if signedIn() && request.resource.data.patientId == request.auth.uid;
+      // Either side may change only the status.
+      allow update: if signedIn() &&
+        (resource.data.patientId == request.auth.uid ||
+         (isTherapist() && resource.data.therapistId == myCode())) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+    }
+  }
+}

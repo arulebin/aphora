@@ -414,7 +414,7 @@ final List<QuestionData> allQuestions = [
     id: 48,
     category: 'Feelings',
     englishPhrase: 'Cold',
-    tamilPhrase: 'சளி',
+    tamilPhrase: 'குளிர்',
     imagePath: 'assets/images/questions/48_cold.png',
     difficulty: 'Easy',
   ),

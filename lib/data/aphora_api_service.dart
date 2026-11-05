@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
 
@@ -85,21 +86,21 @@ class AphoraApiService {
       : _baseUrl = baseUrl ?? _resolveDefaultBaseUrl();
 
   final String _baseUrl;
+  bool? _reachable;
+  DateTime? _checkedAt;
 
   String get baseUrl => _baseUrl;
 
+  /// Build with `--dart-define=API_BASE_URL=https://your-host` for real
+  /// devices. The fallbacks only work for a server on the dev machine.
+  static const _configured = String.fromEnvironment('API_BASE_URL');
+
   static String _resolveDefaultBaseUrl() {
-    if (kIsWeb) {
-      return 'http://localhost:8000';
-    }
+    if (_configured.isNotEmpty) return _configured;
+    if (kIsWeb) return 'http://localhost:8000';
     try {
-      if (Platform.isAndroid) {
-        // Android emulator loopback to host machine.
-        return 'http://10.0.2.2:8000';
-      }
-    } catch (_) {
-      // Platform unavailable (web caught above; ignore otherwise).
-    }
+      if (Platform.isAndroid) return 'http://10.0.2.2:8000'; // emulator
+    } catch (_) {}
     return 'http://127.0.0.1:8000';
   }
 
@@ -114,85 +115,95 @@ class AphoraApiService {
     }
   }
 
-  /// Evaluate the user's recording against a reference asset.
-  ///
-  /// [referenceAssetPath] is a Flutter asset path (e.g. `assets/vannakam.wav`).
-  /// [userAudioPath] is the on-device path to the recorded user audio.
+  /// Cached reachability (re-checked every 2 minutes) so exercises can
+  /// decide between server scoring and on-device scoring without delay.
+  Future<bool> isReachable() async {
+    final fresh = _checkedAt != null &&
+        DateTime.now().difference(_checkedAt!) < const Duration(minutes: 2);
+    if (_reachable != null && fresh) return _reachable!;
+    _reachable = await ping();
+    _checkedAt = DateTime.now();
+    return _reachable!;
+  }
+
+  /// Evaluate the user's recording against a bundled reference asset.
   Future<EvaluationResult> evaluateAgainstAsset({
     required String referenceAssetPath,
-    required String userAudioPath,
+    required List<int> userAudioBytes,
     String? referenceText,
+    String? language,
   }) async {
     final byteData = await rootBundle.load(referenceAssetPath);
-    final refBytes = byteData.buffer.asUint8List();
-
-    final refFilename = referenceAssetPath.split('/').last;
     return evaluate(
-      referenceBytes: refBytes,
-      referenceFilename: refFilename,
-      userAudioPath: userAudioPath,
+      referenceBytes: byteData.buffer.asUint8List(),
+      referenceFilename: referenceAssetPath.split('/').last,
+      userAudioBytes: userAudioBytes,
       referenceText: referenceText,
+      language: language,
     );
   }
 
   Future<EvaluationResult> evaluate({
     required List<int> referenceBytes,
     String referenceFilename = 'reference.wav',
-    required String userAudioPath,
+    required List<int> userAudioBytes,
+    String userFilename = 'user.wav',
     String? referenceText,
+    String? language,
+    Duration timeout = const Duration(seconds: 45),
   }) async {
-    final uri = Uri.parse('$_baseUrl/evaluate');
-    final request = http.MultipartRequest('POST', uri);
-
-    request.files.add(
-      http.MultipartFile.fromBytes(
-        'reference_audio',
-        referenceBytes,
-        filename: referenceFilename,
-      ),
-    );
-
-    if (kIsWeb) {
-      // On web the recorder returns a blob URL; fetch the bytes first.
-      final audioResponse = await http.get(Uri.parse(userAudioPath));
-      if (audioResponse.statusCode != 200) {
-        throw AphoraApiException(
-          'Could not read recorded audio blob.',
-          statusCode: audioResponse.statusCode,
-        );
-      }
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          'user_audio',
-          audioResponse.bodyBytes,
-          filename: 'user_${DateTime.now().millisecondsSinceEpoch}.wav',
-        ),
-      );
-    } else {
-      request.files.add(
-        await http.MultipartFile.fromPath('user_audio', userAudioPath),
-      );
-    }
-
+    final request =
+        http.MultipartRequest('POST', Uri.parse('$_baseUrl/evaluate'))
+          ..files.add(http.MultipartFile.fromBytes(
+            'reference_audio',
+            referenceBytes,
+            filename: referenceFilename,
+          ))
+          ..files.add(http.MultipartFile.fromBytes(
+            'user_audio',
+            userAudioBytes,
+            filename: userFilename,
+          ));
     if (referenceText != null && referenceText.trim().isNotEmpty) {
       request.fields['reference_text'] = referenceText.trim();
     }
+    if (language != null) request.fields['language'] = language;
 
-    final streamed = await request.send();
-    final body = await streamed.stream.bytesToString();
+    final http.StreamedResponse streamed;
+    final String body;
+    try {
+      streamed = await request.send().timeout(timeout);
+      body = await streamed.stream.bytesToString().timeout(timeout);
+    } on TimeoutException {
+      _reachable = false;
+      throw AphoraApiException('The scoring server took too long to answer.');
+    } catch (e) {
+      _reachable = false;
+      throw AphoraApiException('Could not reach the scoring server.');
+    }
 
     if (streamed.statusCode != 200) {
       throw AphoraApiException(
-        body.isNotEmpty ? body : 'Evaluation request failed.',
+        _detail(body) ?? 'Evaluation failed (${streamed.statusCode}).',
         statusCode: streamed.statusCode,
       );
     }
-
     try {
-      final json = jsonDecode(body) as Map<String, dynamic>;
-      return EvaluationResult.fromJson(json);
+      return EvaluationResult.fromJson(
+        jsonDecode(body) as Map<String, dynamic>,
+      );
     } catch (e) {
-      throw AphoraApiException('Invalid response from API: $e');
+      throw AphoraApiException('The server sent an unexpected answer.');
     }
+  }
+
+  /// FastAPI errors look like {"detail": "..."} (or a list for 422s).
+  static String? _detail(String body) {
+    try {
+      final d = (jsonDecode(body) as Map<String, dynamic>)['detail'];
+      if (d is String) return d;
+      if (d is List && d.isNotEmpty) return d.first['msg']?.toString();
+    } catch (_) {}
+    return null;
   }
 }

@@ -1,172 +1,264 @@
-import 'package:aphora/ui/widgets/clinical_app_bar.dart';
-import 'package:flutter/material.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:aphora/ui/design/components.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'dart:io' show Platform;
 
+/// Private patient↔therapist video room.
+///
+/// Fixes from the old page: every call used one shared "demo_channel";
+/// the Agora App ID was hard-coded; permission denials were ignored; the
+/// engine leaked if you left early; and there were no call controls.
+///
+/// Configure with `--dart-define=AGORA_APP_ID=...` (and AGORA_TOKEN for
+/// projects with certificates enabled).
 class VideoCallPage extends StatefulWidget {
-  final String channelName;
+  const VideoCallPage({
+    super.key,
+    required this.channelName,
+    this.peerName = 'your therapist',
+  });
 
-  const VideoCallPage({super.key, required this.channelName});
+  final String channelName;
+  final String peerName;
 
   @override
   State<VideoCallPage> createState() => _VideoCallPageState();
 }
 
 class _VideoCallPageState extends State<VideoCallPage> {
-  late RtcEngine _engine;
-  int? _remoteUid;
-  bool _isAgoraSupported = false;
-  String _errorMessage = '';
+  static const _appId = String.fromEnvironment('AGORA_APP_ID');
+  static const _token = String.fromEnvironment('AGORA_TOKEN');
 
-  final String appId = "20a8a131f3a74bf9ab55456cf33e22c2";
+  RtcEngine? _engine;
+  int? _remoteUid;
+  bool _joined = false;
+  bool _muted = false;
+  bool _cameraOff = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    initAgora();
+    _start();
   }
 
-  bool _isWeb() {
-    try {
-      return !Platform.isAndroid && !Platform.isIOS && !Platform.isWindows && !Platform.isLinux && !Platform.isMacOS;
-    } catch (e) {
-      return true;
+  Future<void> _start() async {
+    if (kIsWeb) {
+      setState(() => _error =
+          'Video calls work in the Android and iOS app. Please open Vernacura on your phone.');
+      return;
     }
-  }
-
-  Future<void> initAgora() async {
-    try {
-      // Agora RTC Engine is not supported on web platform
-      if (_isWeb()) {
-        setState(() {
-          _errorMessage = 'Video calls are not supported on web platform. Please use mobile or desktop.';
-          _isAgoraSupported = false;
-        });
-        return;
+    if (_appId.isEmpty) {
+      setState(() => _error =
+          'Video calling is not set up in this build yet. Ask the Vernacura team to add the video key.');
+      return;
+    }
+    final perms = await [Permission.camera, Permission.microphone].request();
+    if (perms.values.any((s) => !s.isGranted)) {
+      if (mounted) {
+        setState(() => _error =
+            'Vernacura needs camera and microphone permission for video calls. '
+            'Please allow both in your phone settings.');
       }
-
-      await [Permission.camera, Permission.microphone].request();
-
-      _engine = createAgoraRtcEngine();
-      await _engine.initialize(RtcEngineContext(appId: appId));
-      
-      setState(() {
-        _isAgoraSupported = true;
-      });
-
-      _engine.registerEventHandler(
-        RtcEngineEventHandler(
-          onUserJoined: (connection, remoteUid, elapsed) {
-            setState(() {
-              _remoteUid = remoteUid;
-            });
-          },
-          onUserOffline: (connection, remoteUid, reason) {
-            setState(() {
-              _remoteUid = null;
-            });
-          },
-        ),
-      );
-
-      await _engine.enableVideo();
-      await _engine.startPreview();
-
-      await _engine.joinChannel(
-        token: "",
+      return;
+    }
+    try {
+      final engine = createAgoraRtcEngine();
+      _engine = engine;
+      await engine.initialize(const RtcEngineContext(appId: _appId));
+      engine.registerEventHandler(RtcEngineEventHandler(
+        onJoinChannelSuccess: (_, _) {
+          if (mounted) setState(() => _joined = true);
+        },
+        onUserJoined: (_, uid, _) {
+          if (mounted) setState(() => _remoteUid = uid);
+        },
+        onUserOffline: (_, _, _) {
+          if (mounted) setState(() => _remoteUid = null);
+        },
+        onError: (err, msg) {
+          if (mounted) setState(() => _error = 'Call error: $msg');
+        },
+      ));
+      await engine.enableVideo();
+      await engine.startPreview();
+      await engine.joinChannel(
+        token: _token,
         channelId: widget.channelName,
         uid: 0,
         options: const ChannelMediaOptions(),
       );
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Error initializing video call: ${e.toString()}';
-        _isAgoraSupported = false;
-      });
-      print('Agora initialization error: $e');
+      if (mounted) setState(() => _error = 'Could not start the call. ($e)');
     }
   }
 
   @override
   void dispose() {
-    if (_isAgoraSupported) {
-      try {
-        _engine.leaveChannel();
-        _engine.release();
-      } catch (e) {
-        print('Error disposing Agora engine: $e');
-      }
+    final e = _engine;
+    if (e != null) {
+      e.leaveChannel().whenComplete(e.release);
     }
     super.dispose();
   }
 
-  Widget _remoteVideo() {
-    if (_remoteUid != null) {
-      return AgoraVideoView(
-        controller: VideoViewController.remote(
-          rtcEngine: _engine,
-          canvas: VideoCanvas(uid: _remoteUid),
-          connection: RtcConnection(channelId: widget.channelName),
-        ),
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    if (_error != null) {
+      return AphScaffold(
+        title: 'Video call',
+        children: [
+          EmptyState(
+            icon: Icons.videocam_off_rounded,
+            title: 'Video call unavailable',
+            message: _error,
+            action: AphButton.secondary(
+              label: 'Go back',
+              expand: false,
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ],
       );
-    } else {
-      return const Center(child: Text("Waiting for user..."));
     }
-  }
-
-  Widget _localVideo() {
-    return AgoraVideoView(
-      controller: VideoViewController(
-        rtcEngine: _engine,
-        canvas: const VideoCanvas(uid: 0),
+    final engine = _engine;
+    return Scaffold(
+      backgroundColor: const Color(0xFF0E1A1F),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: engine != null && _remoteUid != null
+                  ? AgoraVideoView(
+                      controller: VideoViewController.remote(
+                        rtcEngine: engine,
+                        canvas: VideoCanvas(uid: _remoteUid),
+                        connection: RtcConnection(channelId: widget.channelName),
+                      ),
+                    )
+                  : Center(
+                      child: Semantics(
+                        liveRegion: true,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CircularProgressIndicator(color: Colors.white),
+                            const Gap(AphSpace.md),
+                            Text(
+                              _joined
+                                  ? 'Waiting for ${widget.peerName} to join…'
+                                  : 'Connecting…',
+                              style: t.titleMedium?.copyWith(color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+            ),
+            if (engine != null && !_cameraOff)
+              Positioned(
+                top: AphSpace.md,
+                right: AphSpace.md,
+                width: 110,
+                height: 150,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AphRadius.md),
+                  child: AgoraVideoView(
+                    controller: VideoViewController(
+                      rtcEngine: engine,
+                      canvas: const VideoCanvas(uid: 0),
+                    ),
+                  ),
+                ),
+              ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: AphSpace.lg,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _CallButton(
+                    icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                    label: _muted ? 'Unmute' : 'Mute',
+                    onTap: () {
+                      setState(() => _muted = !_muted);
+                      engine?.muteLocalAudioStream(_muted);
+                    },
+                  ),
+                  _CallButton(
+                    icon: Icons.call_end_rounded,
+                    label: 'End call',
+                    color: AphColors.danger,
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  _CallButton(
+                    icon: _cameraOff
+                        ? Icons.videocam_off_rounded
+                        : Icons.videocam_rounded,
+                    label: _cameraOff ? 'Camera on' : 'Camera off',
+                    onTap: () {
+                      setState(() => _cameraOff = !_cameraOff);
+                      engine?.muteLocalVideoStream(_cameraOff);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+class _CallButton extends StatelessWidget {
+  const _CallButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.color = const Color(0x33FFFFFF),
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    if (!_isAgoraSupported && _errorMessage.isNotEmpty) {
-      return Scaffold(
-        appBar: ClinicalAppBar(title: "Page"),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.videocam_off, size: 64, color: Colors.grey),
-              const SizedBox(height: 16),
-              Text(
-                _errorMessage,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16),
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Material(
+            color: color,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: SizedBox(
+                width: 68,
+                height: 68,
+                child: Icon(icon, color: Colors.white, size: 32),
               ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Go Back'),
-              ),
-            ],
+            ),
           ),
-        ),
-      );
-    }
-
-    return Scaffold(
-      appBar: ClinicalAppBar(title: "Page"),
-      body: _isAgoraSupported
-          ? Stack(
-              children: [
-                _remoteVideo(),
-                Positioned(
-                  top: 20,
-                  right: 20,
-                  width: 120,
-                  height: 160,
-                  child: _localVideo(),
-                ),
-              ],
-            )
-          : const Center(child: CircularProgressIndicator()),
+          const Gap(AphSpace.xs),
+          Text(
+            label,
+            style: Theme.of(context)
+                .textTheme
+                .labelMedium
+                ?.copyWith(color: Colors.white),
+          ),
+        ],
+      ),
     );
   }
 }

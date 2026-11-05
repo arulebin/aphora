@@ -41,7 +41,7 @@ final List<SentenceData> allSentences = [
   SentenceData(
     id: 3,
     englishSentence: 'Nice to meet you.',
-    tamilSentence: 'உனை சந்திப்பது மகிழ்ச்சி.',
+    tamilSentence: 'உங்களைச் சந்தித்ததில் மகிழ்ச்சி.',
     category: 'Greetings',
     difficulty: 'Hard',
     translation: 'Expressing pleasure at meeting someone',
@@ -67,7 +67,7 @@ final List<SentenceData> allSentences = [
   SentenceData(
     id: 6,
     englishSentence: 'Can you help me please?',
-    tamilSentence: 'தயவு செய்து என்னை உதவ முடியுமா?',
+    tamilSentence: 'தயவுசெய்து எனக்கு உதவ முடியுமா?',
     category: 'Requests',
     difficulty: 'Hard',
     translation: 'Politely asking for help',
@@ -85,7 +85,7 @@ final List<SentenceData> allSentences = [
   SentenceData(
     id: 8,
     englishSentence: 'I am not feeling well.',
-    tamilSentence: 'நான் நன்றாக உணர்வதில்லை.',
+    tamilSentence: 'எனக்கு உடம்பு சரியில்லை.',
     category: 'Health',
     difficulty: 'Hard',
     translation: 'Expressing illness or discomfort',
@@ -93,7 +93,7 @@ final List<SentenceData> allSentences = [
   SentenceData(
     id: 9,
     englishSentence: 'Please give me water.',
-    tamilSentence: 'தயவு செய்து எனக்கு தண்ணீர் தந்து.',
+    tamilSentence: 'தயவுசெய்து எனக்குத் தண்ணீர் கொடுங்கள்.',
     category: 'Requests',
     difficulty: 'Hard',
     translation: 'Requesting water politely',
@@ -111,7 +111,7 @@ final List<SentenceData> allSentences = [
   SentenceData(
     id: 11,
     englishSentence: 'Call an ambulance now.',
-    tamilSentence: 'இப்போது 救救车 அழைக்கவும்.',
+    tamilSentence: 'உடனே ஆம்புலன்ஸை அழையுங்கள்.',
     category: 'Emergency',
     difficulty: 'Hard',
     translation: 'Emergency request for ambulance',

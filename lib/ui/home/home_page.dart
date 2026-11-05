@@ -1,6 +1,45 @@
+import 'package:aphora/data/learning/practice_catalog.dart';
 import 'package:aphora/data/models/usermodel.dart';
+import 'package:aphora/logic/comfort_settings.dart';
+import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
+import 'package:aphora/ui/design/components.dart';
+import 'package:aphora/ui/home/main_navigation.dart';
+import 'package:aphora/ui/practice/picture_match_page.dart';
+import 'package:aphora/ui/practice/practice_session_page.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+/// One step of today's plan. `kind == null` means picture match.
+class PlanStep {
+  const PlanStep(this.id, this.kind, this.title, this.minutes, this.icon);
+  final String id;
+  final PracticeKind? kind;
+  final String title;
+  final int minutes;
+  final IconData icon;
+
+  static List<PlanStep> forUser(UserModel? user) {
+    PlanStep k(PracticeKind kind) =>
+        PlanStep(kind.id, kind, kind.title, kind.minutes, kind.icon);
+    final picture = PlanStep(
+      'picture',
+      null,
+      tr('Picture match', 'படப் பொருத்தம்'),
+      3,
+      Icons.grid_view_rounded,
+    );
+    return switch (user?.recommendedFocus) {
+      'letters' => [k(PracticeKind.letters), k(PracticeKind.words), picture],
+      'sentences' => [
+          k(PracticeKind.words),
+          k(PracticeKind.sentences),
+          k(PracticeKind.naming),
+        ],
+      _ => [k(PracticeKind.letters), k(PracticeKind.words), k(PracticeKind.naming)],
+    };
+  }
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -10,407 +49,291 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  @override
-  void initState() {
-    super.initState();
-    Locator.userDatabaseService.currentUser.addListener(_updateUI);
-  }
+  final _users = Locator.userDatabaseService;
 
-  void _updateUI() {
+  Future<void> _open(PlanStep step) async {
+    if (step.kind == null) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const PictureMatchPage()),
+      );
+    } else {
+      await openPractice(context, step.kind!);
+    }
     if (mounted) setState(() {});
   }
 
   @override
-  void dispose() {
-    Locator.userDatabaseService.currentUser.removeListener(_updateUI);
-    super.dispose();
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<UserModel?>(
+      valueListenable: _users.currentUser,
+      builder: (context, user, _) {
+        final t = Theme.of(context).textTheme;
+        final today = dayKey(DateTime.now());
+        final done = ComfortSettings.instance.planDone(today);
+        final plan = PlanStep.forUser(user);
+        final remaining = plan.where((s) => !done.contains(s.id)).toList();
+        final mins = remaining.fold<int>(0, (a, s) => a + s.minutes);
+        final firstName = (user?.name ?? '').split(' ').first;
+        final hour = DateTime.now().hour;
+        final greeting = hour < 12
+            ? tr('Good morning', 'காலை வணக்கம்')
+            : hour < 17
+                ? tr('Good afternoon', 'மதிய வணக்கம்')
+                : tr('Good evening', 'மாலை வணக்கம்');
+
+        return AphScaffold(
+          onRefresh: () async {
+            await _users.refreshCurrentUser();
+          },
+          children: [
+            const Gap(AphSpace.md),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        DateFormat('EEEE, d MMMM').format(DateTime.now()),
+                        style: t.bodyMedium,
+                      ),
+                      const Gap(AphSpace.xxs),
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          firstName.isEmpty ? greeting : '$greeting, $firstName',
+                          style: t.headlineLarge,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if ((user?.streakDays ?? 0) > 0)
+                  StatusPill(
+                    label: tr('${user!.streakDays}-day streak',
+                        '${user.streakDays} நாள் தொடர்'),
+                    icon: Icons.local_fire_department_rounded,
+                    color: AphColors.accent,
+                    soft: AphColors.accentSoft,
+                  ),
+              ],
+            ),
+            if (ComfortSettings.instance.assistedMode.value) ...[
+              const Gap(AphSpace.md),
+              FeedbackBanner(
+                tone: FeedbackTone.info,
+                title: tr('Assisted mode is on', 'உதவி முறை இயக்கத்தில்'),
+                message: tr(
+                  'Sessions start with a hand-over step and end with a helper note.',
+                  'அமர்வுகள் ஒப்படைப்பு படியுடன் தொடங்கி உதவியாளர் குறிப்புடன் முடிகின்றன.',
+                ),
+              ),
+            ],
+            if ((user?.therapistNote ?? '').isNotEmpty) ...[
+              const Gap(AphSpace.md),
+              AphCard(
+                color: AphColors.infoSoft,
+                borderColor: AphColors.info.withValues(alpha: 0.3),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.medical_services_rounded,
+                        color: AphColors.info, size: 28),
+                    const Gap(AphSpace.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(tr('From your therapist', 'உங்கள் சிகிச்சையாளரிடமிருந்து'),
+                              style: t.titleMedium?.copyWith(color: AphColors.info)),
+                          const Gap(AphSpace.xxs),
+                          Text(user!.therapistNote!, style: t.bodyLarge),
+                        ],
+                      ),
+                    ),
+                    ReadAloudButton(text: user.therapistNote!, compact: true),
+                  ],
+                ),
+              ),
+            ],
+            if (user != null && user.preAssessmentScore == null) ...[
+              const Gap(AphSpace.md),
+              ActionTile(
+                icon: Icons.assignment_rounded,
+                title: tr('Start with a speech check-up', 'பேச்சு மதிப்பீட்டுடன் தொடங்குங்கள்'),
+                subtitle: tr(
+                  '10 minutes. We use it to choose the right exercises for you.',
+                  '10 நிமிடம். உங்களுக்கு ஏற்ற பயிற்சிகளைத் தேர்ந்தெடுக்க.',
+                ),
+                color: AphColors.accent,
+                softColor: AphColors.accentSoft,
+                onTap: () async {
+                  await openPractice(context, PracticeKind.assessment);
+                  if (mounted) setState(() {});
+                },
+              ),
+            ],
+            SectionHeader(
+              tr("Today's plan", 'இன்றைய திட்டம்'),
+              subtitle: remaining.isEmpty
+                  ? tr('All done for today — wonderful work.',
+                      'இன்றைக்கு எல்லாம் முடிந்தது — அருமை.')
+                  : tr('${remaining.length} exercises · about $mins minutes',
+                      '${remaining.length} பயிற்சிகள் · சுமார் $mins நிமிடங்கள்'),
+            ),
+            AphCard(
+              padding: const EdgeInsets.all(AphSpace.md),
+              child: Column(
+                children: [
+                  for (final (i, step) in plan.indexed) ...[
+                    if (i > 0) const Divider(height: AphSpace.md),
+                    _PlanRow(
+                      step: step,
+                      done: done.contains(step.id),
+                      onTap: () => _open(step),
+                    ),
+                  ],
+                  const Gap(AphSpace.md),
+                  if (remaining.isNotEmpty)
+                    AphButton(
+                      label: tr('Start: ${remaining.first.title}',
+                          'தொடங்கு: ${remaining.first.title}'),
+                      icon: Icons.play_arrow_rounded,
+                      onPressed: () => _open(remaining.first),
+                    )
+                  else
+                    AphButton.secondary(
+                      label: tr('Practise more', 'மேலும் பயிற்சி'),
+                      icon: Icons.add_rounded,
+                      onPressed: () =>
+                          MainNavigation.goTo(context, MainNavigation.practice),
+                    ),
+                ],
+              ),
+            ),
+            SectionHeader(tr('This week', 'இந்த வாரம்')),
+            _WeekCard(user: user),
+          ],
+        );
+      },
+    );
   }
+}
+
+class _PlanRow extends StatelessWidget {
+  const _PlanRow({required this.step, required this.done, required this.onTap});
+  final PlanStep step;
+  final bool done;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final user = Locator.userDatabaseService.currentUser.value;
-    final name = user?.name ?? "User";
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: Row(
-          children: [
-            const Icon(
-              Icons.analytics_outlined,
-              color: Color(0xFF1E88E5),
-              size: 28,
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              "Aphora",
-              style: TextStyle(
-                color: Color(0xFF1E293B),
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              backgroundColor: const Color(0xFFE0F2FE),
-              child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : "?",
-                style: const TextStyle(
-                  color: Color(0xFF0369A1),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final t = Theme.of(context).textTheme;
+    return Semantics(
+      button: true,
+      label: '${step.title}, about ${step.minutes} minutes, ${done ? 'done' : 'not done yet'}',
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AphRadius.md),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 56),
+          child: Row(
             children: [
+              Icon(
+                done ? Icons.check_circle_rounded : step.icon,
+                color: done ? AphColors.success : AphColors.primary,
+                size: 30,
+              ),
+              const Gap(AphSpace.md),
+              Expanded(
+                child: Text(
+                  step.title,
+                  style: t.titleMedium?.copyWith(
+                    decoration: done ? TextDecoration.lineThrough : null,
+                    color: done ? AphColors.inkMuted : AphColors.ink,
+                  ),
+                ),
+              ),
               Text(
-                "Welcome back, $name",
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1E293B),
-                ),
+                done ? tr('Done', 'முடிந்தது') : '${step.minutes} min',
+                style: t.bodySmall,
               ),
-              const SizedBox(height: 6),
-              const Text(
-                "Here is your latest speech recovery analysis.",
-                style: TextStyle(fontSize: 15, color: Color(0xFF64748B)),
-              ),
-              const SizedBox(height: 32),
-
-              // Key Metrics Row
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildMetricCard(
-                      title: "Progress Score",
-                      value: user?.progressScore.toStringAsFixed(1) ?? "0.0",
-                      icon: Icons.trending_up,
-                      color: const Color(0xFF10B981), // Emerald
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildMetricCard(
-                      title: "Sessions",
-                      value: user?.sessionsCompleted.toString() ?? "0",
-                      icon: Icons.check_circle_outline,
-                      color: const Color(0xFF3B82F6), // Blue
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildMetricCard(
-                      title: "Avg Accuracy",
-                      value:
-                          "${user?.averageAccuracy.toStringAsFixed(1) ?? "0.0"}%",
-                      icon: Icons.my_location_outlined,
-                      color: const Color(0xFFF59E0B), // Amber
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildMetricCard(
-                      title: "Avg Fluency",
-                      value:
-                          "${user?.averageFluency.toStringAsFixed(1) ?? "0.0"}%",
-                      icon: Icons.waves,
-                      color: const Color(0xFF8B5CF6), // Purple
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-
-              // Detailed Analysis Section
-              const Text(
-                "Detailed Analysis",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1E293B),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildProgressBarsCard(user),
-              const SizedBox(height: 24),
-
-              // Weekly Activity (Placeholder for a chart)
-              const Text(
-                "Recent Activity",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1E293B),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildActivityChartCard(user),
+              const Icon(Icons.chevron_right_rounded,
+                  color: AphColors.inkSubtle),
             ],
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildMetricCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1E293B),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF64748B),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+class _WeekCard extends StatelessWidget {
+  const _WeekCard({required this.user});
+  final UserModel? user;
 
-  Widget _buildProgressBarsCard(UserModel? user) {
-    final accuracy = user?.averageAccuracy ?? 0.0;
-    final fluency = user?.averageFluency ?? 0.0;
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-      ),
-      child: Column(
-        children: [
-          _buildProgressBar(
-            "Pronunciation Accuracy",
-            accuracy / 100,
-            const Color(0xFF1E88E5),
-          ),
-          const SizedBox(height: 24),
-          _buildProgressBar(
-            "Speech Fluency",
-            fluency / 100,
-            const Color(0xFF10B981),
-          ),
-          const SizedBox(height: 24),
-          _buildProgressBar(
-            "Comprehension",
-            (user?.progressScore ?? 0.0) / 100,
-            const Color(0xFF8B5CF6),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProgressBar(String label, double percent, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF334155),
-              ),
-            ),
-            Text(
-              "${(percent * 100).toStringAsFixed(0)}%",
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LinearProgressIndicator(
-            value: percent,
-            minHeight: 10,
-            backgroundColor: const Color(0xFFF1F5F9),
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActivityChartCard(UserModel? user) {
+  @override
+  Widget build(BuildContext context) {
     final counts = user?.recentActivityCounts(days: 7) ?? List.filled(7, 0);
-    final maxCount = counts.fold<int>(0, (a, b) => a > b ? a : b);
-    final hasActivity = maxCount > 0;
-
     final now = DateTime.now();
-    const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final labels = <String>[];
-    for (int i = 6; i >= 0; i--) {
-      final d = now.subtract(Duration(days: i));
-      // DateTime.weekday is 1=Mon..7=Sun
-      labels.add(dayLabels[d.weekday - 1]);
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-      ),
+    final labels = [
+      for (var i = 6; i >= 0; i--)
+        DateFormat('E').format(now.subtract(Duration(days: i))).substring(0, 2),
+    ];
+    return AphCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Sessions per day',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF64748B),
+              Expanded(
+                child: _Mini(
+                  value: '${counts.fold<int>(0, (a, b) => a + b)}',
+                  label: tr('exercises', 'பயிற்சிகள்'),
                 ),
               ),
-              Text(
-                hasActivity
-                    ? '${counts.fold<int>(0, (a, b) => a + b)} this week'
-                    : 'No sessions yet',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF94A3B8),
+              Expanded(
+                child: _Mini(
+                  value: '${user?.streakDays ?? 0}',
+                  label: tr('day streak', 'நாள் தொடர்'),
+                ),
+              ),
+              Expanded(
+                child: _Mini(
+                  value: '${(user?.averageAccuracy ?? 0).round()}',
+                  label: tr('avg score', 'சராசரி'),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 140,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(7, (i) {
-                final ratio = hasActivity ? counts[i] / maxCount : 0.0;
-                return _buildBar(labels[i], ratio, counts[i]);
-              }),
-            ),
-          ),
+          const Gap(AphSpace.lg),
+          WeekBars(counts: counts, labels: labels),
         ],
       ),
     );
   }
+}
 
-  Widget _buildBar(String day, double heightRatio, int count) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Text(
-          count > 0 ? '$count' : '',
-          style: const TextStyle(
-            fontSize: 11,
-            color: Color(0xFF64748B),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          width: 24,
-          height: 100 * heightRatio.clamp(0.0, 1.0),
-          decoration: BoxDecoration(
-            color: heightRatio > 0
-                ? const Color(0xFF1E88E5)
-                : const Color(0xFFE2E8F0),
-            borderRadius: BorderRadius.circular(6),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          day,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Color(0xFF64748B),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
+class _Mini extends StatelessWidget {
+  const _Mini({required this.value, required this.label});
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return Semantics(
+      label: '$value $label',
+      excludeSemantics: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value, style: t.headlineMedium),
+          Text(label, style: t.bodySmall),
+        ],
+      ),
     );
   }
 }

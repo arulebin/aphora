@@ -1,233 +1,132 @@
-import 'package:aphora/ui/widgets/clinical_app_bar.dart';
+import 'package:aphora/data/models/usermodel.dart';
+import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
-import 'package:aphora/main.dart';
-import 'package:aphora/ui/assessment/pre_assessment_test_page.dart';
+import 'package:aphora/ui/design/components.dart';
+import 'package:aphora/ui/profile/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+/// "Me" tab: profile details, comfort settings, sign out.
+/// (Previously a linked patient had no way to sign out at all.)
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final user = Locator.userDatabaseService.currentUser.value;
-
-    return Scaffold(
-      backgroundColor: DuoColors.surface,
-      appBar: const ClinicalAppBar(title: "Page", showBackButton: true),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
-        child: Column(
+    return ValueListenableBuilder<UserModel?>(
+      valueListenable: Locator.userDatabaseService.currentUser,
+      builder: (context, user, _) {
+        final t = Theme.of(context).textTheme;
+        return AphScaffold(
+          title: tr('Me', 'நான்'),
+          showBack: false,
           children: [
-            CircleAvatar(
-              radius: 50,
-              backgroundColor: DuoColors.greenLight,
-              child: Icon(Icons.person, size: 50, color: DuoColors.green),
-            ),
-            SizedBox(height: 10),
-            Text(
-              user?.name ?? 'User',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            Text(user?.email ?? '', style: TextStyle(color: Colors.grey)),
-            SizedBox(height: 20),
-            Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
+            AphCard(
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 34,
+                    backgroundColor: AphColors.primarySoft,
+                    child: Text(
+                      (user?.name.isNotEmpty ?? false)
+                          ? user!.name.characters.first.toUpperCase()
+                          : '?',
+                      style: t.headlineMedium?.copyWith(color: AphColors.primary),
+                    ),
+                  ),
+                  const Gap(AphSpace.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(user?.name ?? '', style: t.titleLarge),
+                        Text(user?.phoneNumber ?? '', style: t.bodyMedium),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
+            ),
+            if (user != null) ...[
+              SectionHeader(tr('About me', 'என்னைப் பற்றி')),
+              AphCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AphSpace.md,
+                  vertical: AphSpace.xs,
+                ),
                 child: Column(
                   children: [
-                    _buildProfileItem("Gender", user?.gender ?? ''),
-                    Divider(),
-                    _buildProfileItem("Age", user?.age.toString() ?? ''),
-                    Divider(),
-                    _buildProfileItem("Aphasia Type", user?.aphasiaType ?? ''),
-                    Divider(),
-                    _buildProfileItem("Severity", user?.severityLevel ?? ''),
+                    _Info(tr('Age', 'வயது'), user.age > 0 ? '${user.age}' : '—'),
+                    const Divider(),
+                    _Info(tr('Gender', 'பாலினம்'), user.gender.isEmpty ? '—' : user.gender),
+                    const Divider(),
+                    _Info(tr('Aphasia type', 'அஃபேசியா வகை'),
+                        user.aphasiaType.isEmpty ? tr('Not sure', 'தெரியவில்லை') : user.aphasiaType),
+                    const Divider(),
+                    _Info(tr('Severity', 'தீவிரம்'),
+                        user.severityLevel.isEmpty ? '—' : user.severityLevel),
+                    const Divider(),
+                    _Info(
+                      tr('Check-up score', 'மதிப்பீட்டு மதிப்பெண்'),
+                      user.preAssessmentScore == null
+                          ? tr('Not taken yet', 'இன்னும் எடுக்கவில்லை')
+                          : '${user.preAssessmentScore!.round()} / 100',
+                    ),
                   ],
                 ),
               ),
-            ),
-            SizedBox(height: 20),
-            if (user?.linkedCaregiverId == null ||
-                user!.linkedCaregiverId!.isEmpty)
-              Card(
-                color: Colors.orange[50],
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Have a Therapist?",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        "Enter your therapist's referral code to link your account.",
-                      ),
-                      SizedBox(height: 10),
-                      ElevatedButton(
-                        onPressed: () {
-                          _showLinkTherapistDialog(context);
-                        },
-                        child: Text("Link Therapist"),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              Card(
-                color: Colors.green[50],
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: ListTile(
-                  leading: Icon(Icons.verified, color: Colors.green),
-                  title: Text("Linked to Therapist"),
-                  subtitle: Text("ID: ${user.linkedCaregiverId}"),
-                ),
-              ),
-
-            SizedBox(height: 20),
-            // Pre-Assessment Test Button
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-              ),
-              onPressed: () {
-                Navigator.push(
+            ],
+            const ComfortSettingsSection(),
+            const Gap(AphSpace.xl),
+            AphButton.secondary(
+              label: tr('Sign out', 'வெளியேறு'),
+              icon: Icons.logout_rounded,
+              onPressed: () async {
+                final ok = await confirmDialog(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const PreAssessmentTestPage(),
-                  ),
+                  title: tr('Sign out?', 'வெளியேறவா?'),
+                  message: tr('Your progress stays saved. You will need your phone number and password to sign in again.',
+                      'உங்கள் முன்னேற்றம் சேமிக்கப்பட்டிருக்கும்.'),
+                  confirm: tr('Sign out', 'வெளியேறு'),
                 );
-              },
-              icon: const Icon(Icons.assignment_turned_in),
-              label: const Text(
-                "Take Pre-Assessment Test",
-                style: TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-              ),
-              onPressed: () async {
+                if (!ok) return;
                 await Locator.userDatabaseService.logout();
-                if (context.mounted) {
-                  context.go('/login');
-                }
+                if (context.mounted) context.go('/login');
               },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                child: Text(
-                  "Logout",
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
-              ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileItem(String title, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(title, style: TextStyle(fontSize: 16, color: Colors.grey[700])),
-          Text(
-            value,
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showLinkTherapistDialog(BuildContext context) {
-    TextEditingController controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("Link Therapist"),
-          content: TextField(
-            controller: controller,
-            decoration: InputDecoration(
-              hintText: "Enter Therapist Code",
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text("Cancel"),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final user = Locator.userDatabaseService.currentUser.value;
-                final code = controller.text.trim();
-
-                if (user != null && code.isNotEmpty) {
-                  // Validate therapist code exists
-                  final appState = ScaffoldMessenger.of(context);
-                  final therapist = await Locator.userDatabaseService
-                      .getTherapistByCode(code);
-
-                  if (therapist != null) {
-                    final updated = user.copyWith(linkedCaregiverId: code);
-                    Locator.userDatabaseService.updateUser(updated);
-                    Locator.userDatabaseService.currentUser.value = updated;
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                      appState.showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            "Linked to ${therapist.name} successfully!",
-                          ),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
-                  } else {
-                    if (context.mounted) {
-                      appState.showSnackBar(
-                        const SnackBar(
-                          content: Text("Invalid Therapist Code"),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                }
-              },
-              child: Text("Link"),
+            const Gap(AphSpace.md),
+            Text(
+              'Vernacura · speech practice between therapy visits',
+              textAlign: TextAlign.center,
+              style: t.bodySmall,
             ),
           ],
         );
       },
+    );
+  }
+}
+
+class _Info extends StatelessWidget {
+  const _Info(this.label, this.value);
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return MergeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AphSpace.sm),
+        child: Row(
+          children: [
+            Expanded(child: Text(label, style: t.bodyMedium)),
+            Flexible(
+              child: Text(value, style: t.titleMedium, textAlign: TextAlign.end),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
