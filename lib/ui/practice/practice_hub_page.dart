@@ -47,6 +47,18 @@ class PracticeHubPage extends StatelessWidget {
           showBack: false,
           children: [
             const VoiceCheckBanner(),
+            if (user?.condition.contentPending ?? false) ...[
+              FeedbackBanner(
+                tone: FeedbackTone.info,
+                title: tr('Your exercises are being prepared',
+                    'உங்களுக்கான பயிற்சிகள் தயாராகி வருகின்றன'),
+                message: tr(
+                  'Exercises for "${user!.condition.english}" are not ready yet. For now, use the general practice set below.',
+                  '"${user.condition.tamil}" பயிற்சிகள் இன்னும் தயாராகவில்லை. இப்போதைக்குக் கீழே உள்ள பொதுப் பயிற்சிகளைப் பயன்படுத்துங்கள்.',
+                ),
+              ),
+              const Gap(AphSpace.md),
+            ],
             Text(
               tr('Short, focused exercises. Do a little every day — regular practice matters more than long sessions.',
                   'சிறிய பயிற்சிகள். தினமும் கொஞ்சம் செய்யுங்கள் — நீண்ட அமர்வுகளை விட தொடர்ச்சியே முக்கியம்.'),

@@ -1,3 +1,4 @@
+import 'package:aphora/data/intake/intake_questions.dart';
 import 'package:aphora/data/learning/child_profile.dart';
 import 'package:aphora/data/models/practice_record.dart';
 import 'package:aphora/data/models/usermodel.dart';
@@ -88,8 +89,21 @@ class _PatientDetailPageState extends State<PatientDetailPage> {
                 spacing: AphSpace.xs,
                 runSpacing: AphSpace.xs,
                 children: [
-                  StatusPill(label: '${p.age} yrs · ${ChildProfile.gender(p.gender)}'),
-                  StatusPill(label: 'Worry: ${ChildProfile.concern(p.aphasiaType)}'),
+                  StatusPill(
+                    label: p.isChild
+                        ? '${p.age} yrs · ${ChildProfile.gender(p.gender)}'
+                        : '${p.age} yrs · ${p.gender}',
+                  ),
+                  StatusPill(
+                    label: p.intake == null
+                        ? 'No intake yet'
+                        : p.condition.therapistLabel,
+                    icon: Icons.medical_information_rounded,
+                    color: AphColors.info,
+                    soft: AphColors.infoSoft,
+                  ),
+                  if (p.isChild)
+                    StatusPill(label: 'Worry: ${ChildProfile.concern(p.aphasiaType)}'),
                   if (p.severityLevel.isNotEmpty)
                     StatusPill(label: ChildProfile.clarity(p.severityLevel)),
                   StatusPill(label: 'Language: ${p.languagePreference}'),
@@ -128,6 +142,7 @@ class _PatientDetailPageState extends State<PatientDetailPage> {
             ],
           ),
         ),
+        _IntakeSection(patient: p),
         SectionHeader(
           'Note for the parent',
           subtitle: 'Shown on their Today screen and read aloud on request.',
@@ -230,6 +245,52 @@ class _PatientDetailPageState extends State<PatientDetailPage> {
             );
           },
         ),
+      ],
+    );
+  }
+}
+
+/// The intake questionnaire as the therapist sees it: red flags first, then
+/// the template summary. Parent report, screening only.
+class _IntakeSection extends StatelessWidget {
+  const _IntakeSection({required this.patient});
+  final UserModel patient;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final intake = patient.intake;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader(
+          'Intake summary',
+          subtitle: intake == null
+              ? null
+              : 'Parent/carer report, ${DateFormat('d MMM yyyy').format(intake.completedAt)} · '
+                  'screening only, not a diagnosis',
+        ),
+        if (intake == null)
+          Text('No intake questionnaire answered yet.', style: t.bodyLarge)
+        else ...[
+          for (final id in intake.redFlags)
+            if (RedFlag.byId(id) case final f?)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AphSpace.sm),
+                child: FeedbackBanner(
+                  tone: f.level == RedFlagLevel.referral
+                      ? FeedbackTone.warning
+                      : FeedbackTone.error,
+                  title: f.message.en,
+                ),
+              ),
+          AphCard(
+            child: SelectableText(
+              intake.summary.isEmpty ? '—' : intake.summary,
+              style: t.bodyLarge,
+            ),
+          ),
+        ],
       ],
     );
   }

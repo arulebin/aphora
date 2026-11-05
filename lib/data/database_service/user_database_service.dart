@@ -1,4 +1,7 @@
+import 'package:aphora/data/intake/condition.dart';
+import 'package:aphora/data/intake/intake_record.dart';
 import 'package:aphora/data/models/practice_record.dart';
+import 'package:aphora/logic/intake_engine.dart';
 import 'package:aphora/data/models/therapist_model.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/comfort_settings.dart';
@@ -59,6 +62,7 @@ class UserDatabaseService {
     required String gender,
     required String aphasiaType,
     required String severityLevel,
+    Condition condition = Condition.unknown,
     String role = 'patient',
   }) async {
     UserCredential cred;
@@ -91,6 +95,7 @@ class UserDatabaseService {
       progressScore: 0,
       completedExercises: const [],
       linkedCaregiverId: '',
+      condition: condition,
       createdAt: now,
       updatedAt: now,
     );
@@ -209,6 +214,33 @@ class UserDatabaseService {
       'parentConsentAt': FieldValue.serverTimestamp(),
       'consentVersion': version,
     });
+  }
+
+  /// Saves a completed intake questionnaire: `condition`, the `intake` map,
+  /// and the legacy fields older screens read (`aphasiaType`,
+  /// `severityLevel`, and `recommendedFocus` unless a sound check already
+  /// set it — a measured placement beats a questionnaire).
+  Future<void> saveIntake(IntakeRecord record, IntakeResult result) async {
+    final user = currentUser.value;
+    if (user == null) return;
+    final keepFocus = user.preAssessmentScore != null;
+    final now = DateTime.now();
+    await _db.collection(userCollection).doc(user.uid).update({
+      'condition': record.condition.id,
+      'intake': record.toMap(),
+      'aphasiaType': result.concern,
+      'severityLevel': result.severity,
+      if (!keepFocus) 'recommendedFocus': result.recommendedFocus,
+      'updatedAt': now.toIso8601String(),
+    });
+    currentUser.value = user.copyWith(
+      condition: record.condition,
+      intake: record,
+      aphasiaType: result.concern,
+      severityLevel: result.severity,
+      recommendedFocus: keepFocus ? null : result.recommendedFocus,
+      updatedAt: now,
+    );
   }
 
   Future<void> setLanguagePreference(String language) async {

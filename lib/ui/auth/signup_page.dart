@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
-/// Step 1 of 2: phone + password. Step 2 is [UserInfoPage].
+/// Step 1 of 3: phone + password. Step 2 is [UserInfoPage], step 3 the
+/// intake questionnaire.
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
 
@@ -39,8 +40,8 @@ class _SignUpPageState extends State<SignUpPage> {
   Widget build(BuildContext context) {
     return AuthShell(
       title: tr('Create your account', 'கணக்கை உருவாக்குங்கள்'),
-      subtitle: tr('Step 1 of 2 · A parent sets this up for their child.',
-          'படி 1/2 · பெற்றோர் தங்கள் குழந்தைக்காக இதை அமைக்கிறார்கள்.'),
+      subtitle: tr('Step 1 of 3 · A parent or carer sets this up, or you for yourself.',
+          'படி 1/3 · பெற்றோர் அல்லது கவனிப்பவர் இதை அமைக்கலாம்; அல்லது உங்களுக்காக நீங்களே.'),
       footer: [
         Center(
           child: AphButton.ghost(
@@ -56,12 +57,13 @@ class _SignUpPageState extends State<SignUpPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const StepProgress(current: 1, total: 2),
+              const StepProgress(current: 1, total: 3),
               const Gap(AphSpace.lg),
               AphTextField(
                 controller: _phone,
-                label: tr("Parent's mobile number", 'பெற்றோரின் மொபைல் எண்'),
-                helper: tr('Used to sign in. No SMS is sent.', 'உள்நுழைய பயன்படும். SMS அனுப்பப்படாது.'),
+                label: tr('Your mobile number', 'உங்கள் மொபைல் எண்'),
+                helper: tr("The parent's or carer's number. Used to sign in; no SMS is sent.",
+                    'பெற்றோர் அல்லது கவனிப்பவரின் எண். உள்நுழைய பயன்படும்; SMS அனுப்பப்படாது.'),
                 icon: Icons.phone_rounded,
                 keyboardType: TextInputType.phone,
                 inputFormatters: [

@@ -9,6 +9,7 @@ import 'package:aphora/ui/auth/therapist_login_page.dart';
 import 'package:aphora/ui/auth/user_info_page.dart';
 import 'package:aphora/ui/design/theme.dart';
 import 'package:aphora/ui/home/main_navigation.dart';
+import 'package:aphora/ui/intake/intake_page.dart';
 import 'package:aphora/ui/therapist/therapist_dashboard_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -72,6 +73,17 @@ GoRouter _createRouter(String initialLocation) {
           return UserInfoPage(
             phone: extras['phone'] as String? ?? '',
             password: extras['password'] as String? ?? '',
+          );
+        },
+      ),
+      GoRoute(
+        path: '/intake',
+        builder: (context, state) {
+          final extras = state.extra as Map<String, dynamic>? ?? {};
+          return IntakePage(
+            who: extras['who'] as String?,
+            age: extras['age'] as int? ?? 0,
+            fromSignUp: extras['fromSignUp'] as bool? ?? false,
           );
         },
       ),

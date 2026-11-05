@@ -5,6 +5,7 @@ import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/ui/design/components.dart';
 import 'package:aphora/ui/home/main_navigation.dart';
+import 'package:aphora/ui/intake/intake_page.dart';
 import 'package:aphora/ui/practice/picture_match_page.dart';
 import 'package:aphora/ui/practice/practice_session_page.dart';
 import 'package:flutter/material.dart';
@@ -155,6 +156,23 @@ class _HomePageState extends State<HomePage> {
                     ReadAloudButton(text: user.therapistNote!, compact: true),
                   ],
                 ),
+              ),
+            ],
+            if (user != null && user.intake == null) ...[
+              const Gap(AphSpace.md),
+              ActionTile(
+                key: const ValueKey('today_intake'),
+                icon: Icons.quiz_rounded,
+                title: tr('Answer a few questions to tailor the exercises',
+                    'பயிற்சிகளைப் பொருத்தமாக்கச் சில கேள்விகளுக்குப் பதில் சொல்லுங்கள்'),
+                subtitle: tr(
+                  'About 3 minutes, one question at a time. You can listen to each one.',
+                  'சுமார் 3 நிமிடம், ஒரு நேரத்தில் ஒரு கேள்வி. ஒவ்வொன்றையும் கேட்கலாம்.',
+                ),
+                onTap: () async {
+                  await openIntake(context);
+                  if (mounted) setState(() {});
+                },
               ),
             ],
             if (user != null && user.preAssessmentScore == null) ...[

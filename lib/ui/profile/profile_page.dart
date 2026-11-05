@@ -1,9 +1,11 @@
+import 'package:aphora/data/intake/intake_questions.dart';
 import 'package:aphora/data/learning/child_profile.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/family_voice_store.dart';
 import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/ui/design/components.dart';
+import 'package:aphora/ui/intake/intake_page.dart';
 import 'package:aphora/ui/profile/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -50,7 +52,9 @@ class ProfilePage extends StatelessWidget {
               ),
             ),
             if (user != null) ...[
-              SectionHeader(tr('About your child', 'உங்கள் குழந்தையைப் பற்றி')),
+              SectionHeader(user.isChild
+                  ? tr('About your child', 'உங்கள் குழந்தையைப் பற்றி')
+                  : tr('About the person practising', 'பயிற்சி செய்பவரைப் பற்றி')),
               AphCard(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AphSpace.md,
@@ -58,15 +62,27 @@ class ProfilePage extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
+                    _Info(tr('Programme', 'பயிற்சித் திட்டம்'),
+                        user.intake == null
+                            ? tr('Questions not answered yet', 'கேள்விகளுக்கு இன்னும் பதில் இல்லை')
+                            : user.condition.label),
+                    const Divider(),
                     _Info(tr('Age', 'வயது'), user.age > 0 ? '${user.age}' : '—'),
-                    const Divider(),
-                    _Info(tr('Child', 'குழந்தை'), ChildProfile.gender(user.gender)),
-                    const Divider(),
-                    _Info(tr('Main worry', 'முக்கியக் கவலை'),
-                        ChildProfile.concern(user.aphasiaType)),
-                    const Divider(),
-                    _Info(tr('Speech clarity', 'பேச்சுத் தெளிவு'),
-                        ChildProfile.clarity(user.severityLevel)),
+                    if (user.isChild) ...[
+                      const Divider(),
+                      _Info(tr('Child', 'குழந்தை'), ChildProfile.gender(user.gender)),
+                      const Divider(),
+                      _Info(tr('Main worry', 'முக்கியக் கவலை'),
+                          ChildProfile.concern(user.aphasiaType)),
+                      const Divider(),
+                      _Info(tr('Speech clarity', 'பேச்சுத் தெளிவு'),
+                          ChildProfile.clarity(user.severityLevel)),
+                    ],
+                    if (user.intake != null) ...[
+                      const Divider(),
+                      _Info(tr('Start level', 'தொடக்க நிலை'),
+                          StartLevel.label(user.intake!.startLevel).text),
+                    ],
                     const Divider(),
                     _Info(
                       tr('Check-up score', 'மதிப்பீட்டு மதிப்பெண்'),
@@ -76,6 +92,15 @@ class ProfilePage extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              const Gap(AphSpace.sm),
+              AphButton.secondary(
+                key: const ValueKey('me_retake_intake'),
+                label: user.intake == null
+                    ? tr('Answer the questionnaire', 'கேள்வித்தாளுக்குப் பதில் சொல்லுங்கள்')
+                    : tr('Retake questionnaire', 'கேள்வித்தாளை மீண்டும் செய்யுங்கள்'),
+                icon: Icons.quiz_rounded,
+                onPressed: () => openIntake(context),
               ),
             ],
             const ComfortSettingsSection(),
