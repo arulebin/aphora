@@ -5,12 +5,16 @@ import 'package:aphora/logic/language_service.dart';
 import 'package:flutter/material.dart';
 
 /// Every speaking exercise in the app is a list of [PracticeItem]s run by
-/// the one practice engine (`PracticeSessionPage`). Content lives here and
-/// behaviour in one place.
+/// the one practice engine (`PracticeSessionPage`). Which kinds a person
+/// sees, and their content, come from their condition pack
+/// (`lib/data/learning/packs/`); this file holds the shared item model and
+/// the children's content ([PracticeCatalog]).
 ///
-/// Vernacura is for children with speech delay, so the ladder follows how
-/// children acquire speech: single sounds → syllables → picture words →
-/// naming without the word shown (with hints) → two- and three-word phrases.
+/// Children's ladder (how children acquire speech): single sounds →
+/// syllables → picture words → naming without the word shown (with hints)
+/// → two- and three-word phrases. The adult aphasia pack follows the
+/// classic aphasia hierarchy: automatic speech, repetition, naming,
+/// sentence completion, functional phrases, plus clear (slow) speech.
 enum PracticeKind {
   letters,
   words,
@@ -19,8 +23,16 @@ enum PracticeKind {
   phonetic,
   assessment,
   drill,
+  // Adult aphasia pack.
+  automatic,
+  repetition,
+  completion,
+  functional,
+  clearSpeech,
 }
 
+/// Default (children's) names. A pack may rename a kind for its audience —
+/// always go through `ConditionPack.title` on screens.
 extension PracticeKindInfo on PracticeKind {
   String get id => name;
 
@@ -32,6 +44,13 @@ extension PracticeKindInfo on PracticeKind {
         PracticeKind.phonetic => tr('Copy the voice', 'குரலைப் போலச் சொல்'),
         PracticeKind.assessment => tr('Sound check', 'ஒலிப் பரிசோதனை'),
         PracticeKind.drill => tr('Tricky sounds', 'கடினமான ஒலிகள்'),
+        PracticeKind.automatic => tr('Familiar sequences', 'பழகிய வரிசைகள்'),
+        PracticeKind.repetition =>
+          tr('Listen and repeat', 'கேட்டுத் திருப்பிச் சொல்லுங்கள்'),
+        PracticeKind.completion =>
+          tr('Finish the sentence', 'வாக்கியத்தை முடியுங்கள்'),
+        PracticeKind.functional => tr('Everyday needs', 'அன்றாடத் தேவைகள்'),
+        PracticeKind.clearSpeech => tr('Clear speech', 'தெளிவான பேச்சு'),
       };
 
   String get description => switch (this) {
@@ -49,6 +68,21 @@ extension PracticeKindInfo on PracticeKind {
           tr('20 short items to find where your child should start', 'உங்கள் குழந்தை எங்கிருந்து தொடங்கலாம் என்று அறிய 20 சிறு கேள்விகள்'),
         PracticeKind.drill =>
           tr('Focused practice on sounds that were hard', 'கடினமான ஒலிகளில் கவனம்'),
+        PracticeKind.automatic => tr(
+            'Counting, days, months and greetings — say them along',
+            'எண்ணுதல், கிழமைகள், மாதங்கள், வணக்கங்கள் — சேர்ந்து சொல்லுங்கள்'),
+        PracticeKind.repetition => tr(
+            'Words, then phrases, then sentences',
+            'சொற்கள், பிறகு தொடர்கள், பிறகு வாக்கியங்கள்'),
+        PracticeKind.completion => tr(
+            'Say the missing word — hints if you need them',
+            'விடுபட்ட சொல்லைச் சொல்லுங்கள் — தேவைப்பட்டால் குறிப்பு'),
+        PracticeKind.functional => tr(
+            'Water, toilet, pain, calling family — the words that matter most',
+            'தண்ணீர், கழிவறை, வலி, குடும்பத்தை அழைப்பது — மிக முக்கியமான சொற்கள்'),
+        PracticeKind.clearSpeech => tr(
+            'Slow and strong, one part at a time',
+            'மெதுவாக, அழுத்தமாக, ஒவ்வொரு பகுதியாக'),
       };
 
   IconData get icon => switch (this) {
@@ -59,10 +93,16 @@ extension PracticeKindInfo on PracticeKind {
         PracticeKind.phonetic => Icons.graphic_eq_rounded,
         PracticeKind.assessment => Icons.assignment_rounded,
         PracticeKind.drill => Icons.track_changes_rounded,
+        PracticeKind.automatic => Icons.format_list_numbered_rounded,
+        PracticeKind.repetition => Icons.hearing_rounded,
+        PracticeKind.completion => Icons.short_text_rounded,
+        PracticeKind.functional => Icons.volunteer_activism_rounded,
+        PracticeKind.clearSpeech => Icons.slow_motion_video_rounded,
       };
 
   /// Rough minutes per session, for the daily plan. Kept short: young
-  /// children's attention runs out quickly.
+  /// children's attention runs out quickly, and so does an adult's energy
+  /// after a stroke.
   int get minutes => switch (this) {
         PracticeKind.letters => 3,
         PracticeKind.words => 4,
@@ -71,6 +111,11 @@ extension PracticeKindInfo on PracticeKind {
         PracticeKind.phonetic => 3,
         PracticeKind.assessment => 8,
         PracticeKind.drill => 2,
+        PracticeKind.automatic => 2,
+        PracticeKind.repetition => 3,
+        PracticeKind.completion => 3,
+        PracticeKind.functional => 3,
+        PracticeKind.clearSpeech => 3,
       };
 }
 
@@ -83,16 +128,19 @@ class PracticeItem {
     this.meaning,
     this.imagePath,
     this.emoji,
+    this.icon,
     this.referenceAudio,
     this.hideTarget = false,
     this.semanticCue,
     this.familyKey,
+    this.prompt,
+    this.instruction,
   });
 
   /// Stable id used in Firestore attempts.
   final String id;
 
-  /// What the child should say, in the script STT returns.
+  /// What the person should say, in the script STT returns.
   final String target;
 
   /// Other accepted forms (spoken Tamil, English) — device engines
@@ -106,13 +154,16 @@ class PracticeItem {
   /// Picture drawn as a large emoji (children's word bank).
   final String? emoji;
 
+  /// Picture drawn as a plain icon (adult packs, when no photo exists).
+  final IconData? icon;
+
   /// Bundled recording of a fluent speaker; enables server scoring.
   final String? referenceAudio;
 
   /// ta-IN / en-IN.
   final String locale;
 
-  /// Naming tasks hide the word until the child asks for a hint.
+  /// Naming tasks hide the word until the person asks for a hint.
   final bool hideTarget;
 
   /// First rung of the cueing ladder: a meaning hint ("It says meow").
@@ -122,7 +173,15 @@ class PracticeItem {
   /// (e.g. a Sound check word reuses the parent's recording of that word).
   final String? familyKey;
 
-  /// Key of the parent's Family Voice recording for this item. Includes the
+  /// Text always shown above the target: a sentence with a blank to
+  /// complete ("I drink a cup of ___"), or a slow-speech guide split into
+  /// parts ("Wa · ter").
+  final String? prompt;
+
+  /// Overrides the session's line above the card ("Finish the sentence:").
+  final String? instruction;
+
+  /// Key of the Family Voice recording for this item. Includes the
   /// language because the Tamil and English words are different recordings.
   String get voiceKey => familyKey ?? '${id}_${locale.split('-').first}';
 
@@ -136,11 +195,14 @@ class PracticeItem {
   }
 }
 
-/// Content source. Tamil is the default; English mode uses the same
-/// pictures with English words so the app works for bilingual families.
+/// The children's content. Tamil is the default; English mode uses the
+/// same pictures with English words so the app works for bilingual
+/// families. Every method takes an optional [Language] (default: the app
+/// language) so packs can ask for either.
 abstract final class PracticeCatalog {
-  static bool get _ta => LanguageService.currentLanguage == Language.tamil;
-  static String get _locale => _ta ? 'ta-IN' : 'en-IN';
+  static bool _isTa(Language? l) =>
+      (l ?? LanguageService.currentLanguage) == Language.tamil;
+  static String _loc(bool ta) => ta ? 'ta-IN' : 'en-IN';
 
   /// Developmental order: vowels and early consonants (as syllables with
   /// ஆ, which young children say most easily) before the late sounds
@@ -173,93 +235,129 @@ abstract final class PracticeCatalog {
     ('சிவப்பு பந்து', <String>[], 'Red ball'),
   ];
 
-  static List<PracticeItem> items(PracticeKind kind) => switch (kind) {
-        PracticeKind.letters => letters(),
-        PracticeKind.words => words(),
-        PracticeKind.naming => naming(),
-        PracticeKind.sentences => sentences(),
-        PracticeKind.phonetic => phonetic(),
-        PracticeKind.assessment => assessment(),
-        PracticeKind.drill => const [],
+  /// The children's set for one exercise.
+  static List<PracticeItem> items(PracticeKind kind, {Language? language}) =>
+      switch (kind) {
+        PracticeKind.letters => letters(language: language),
+        PracticeKind.words => words(language: language),
+        PracticeKind.naming => naming(language: language),
+        PracticeKind.sentences => sentences(language: language),
+        PracticeKind.phonetic => phonetic(language: language),
+        PracticeKind.assessment => assessment(language: language),
+        _ => const [],
       };
 
-  static List<PracticeItem> letters({int count = 10}) => [
-        for (final (l, roman) in (_ta ? _tamilSounds : _englishSounds).take(count))
-          PracticeItem(
-            id: 'letter_$roman',
-            target: l,
-            alternates: [roman],
-            locale: _locale,
-          ),
-      ];
+  static List<PracticeItem> letters({int count = 10, Language? language}) {
+    final ta = _isTa(language);
+    return [
+      for (final (l, roman) in (ta ? _tamilSounds : _englishSounds).take(count))
+        PracticeItem(
+          id: 'letter_$roman',
+          target: l,
+          alternates: [roman],
+          locale: _loc(ta),
+        ),
+    ];
+  }
 
-  static PracticeItem _fromKid(KidWord w, {bool hide = false}) => PracticeItem(
+  static PracticeItem _fromKid(KidWord w, bool ta, {bool hide = false}) =>
+      PracticeItem(
         id: 'kid_${w.id}',
-        target: _ta ? w.ta : w.en,
-        alternates: _ta ? [...w.taAlternates, w.en] : const [],
-        meaning: _ta ? w.en : null,
+        target: ta ? w.ta : w.en,
+        alternates: ta ? [...w.taAlternates, w.en] : const [],
+        meaning: ta ? w.en : null,
         emoji: w.emoji,
-        locale: _locale,
+        locale: _loc(ta),
         hideTarget: hide,
-        semanticCue: _ta ? w.cueTa : w.cueEn,
+        semanticCue: ta ? w.cueTa : w.cueEn,
       );
 
   /// Picture + word shown. Early-sound words first.
-  static List<PracticeItem> words({int count = 10}) {
+  static List<PracticeItem> words({int count = 10, Language? language}) {
+    final ta = _isTa(language);
     final early = kidWords.where((w) => w.level == 1).toList()..shuffle();
     final later = kidWords.where((w) => w.level == 2).toList()..shuffle();
-    return [...early, ...later].take(count).map(_fromKid).toList();
+    return [...early, ...later].take(count).map((w) => _fromKid(w, ta)).toList();
   }
 
   /// Picture only — the child finds the word, with the hint ladder.
-  static List<PracticeItem> naming({int count = 10}) {
+  static List<PracticeItem> naming({int count = 10, Language? language}) {
+    final ta = _isTa(language);
     final pool = List<KidWord>.from(kidWords)..shuffle();
-    return pool.take(count).map((w) => _fromKid(w, hide: true)).toList();
+    return pool.take(count).map((w) => _fromKid(w, ta, hide: true)).toList();
   }
 
   static String _sentenceId(String en) =>
       'kidsentence_${en.toLowerCase().replaceAll(RegExp(r'[^a-z]+'), '_')}';
 
-  static PracticeItem _sentence((String, List<String>, String) s) {
-    final (ta, spoken, en) = s;
+  static PracticeItem _sentence((String, List<String>, String) s, bool ta) {
+    final (tamil, spoken, en) = s;
     return PracticeItem(
       id: _sentenceId(en),
-      target: _ta ? ta : en,
-      alternates: _ta ? [...spoken, en] : const [],
-      meaning: _ta ? en : null,
-      locale: _locale,
+      target: ta ? tamil : en,
+      alternates: ta ? [...spoken, en] : const [],
+      meaning: ta ? en : null,
+      locale: _loc(ta),
     );
   }
 
-  static List<PracticeItem> sentences({int count = 8}) {
+  static List<PracticeItem> sentences({int count = 8, Language? language}) {
+    final ta = _isTa(language);
     final pool = List.of(_kidSentences)..shuffle();
-    return pool.take(count).map(_sentence).toList();
+    return pool.take(count).map((s) => _sentence(s, ta)).toList();
   }
 
   // ── Family Voice ─────────────────────────────────────────────────────
 
-  /// Everything a parent can record, in a stable order, for the current
-  /// language: the full picture-word bank, the sounds and the sentences.
-  static List<PracticeItem> familyWords() => kidWords.map(_fromKid).toList();
-  static List<PracticeItem> familySounds() => letters(count: 100);
-  static List<PracticeItem> familySentences() =>
-      _kidSentences.map(_sentence).toList();
+  /// Everything a parent can record, in a stable order: the full
+  /// picture-word bank, the sounds and the sentences.
+  static List<PracticeItem> familyWords({Language? language}) {
+    final ta = _isTa(language);
+    return kidWords.map((w) => _fromKid(w, ta)).toList();
+  }
+
+  static List<PracticeItem> familySounds({Language? language}) =>
+      letters(count: 100, language: language);
+
+  static List<PracticeItem> familySentences({Language? language}) {
+    final ta = _isTa(language);
+    return _kidSentences.map((s) => _sentence(s, ta)).toList();
+  }
 
   /// "Copy the voice": when the parent has recorded words, the child copies
   /// Amma/Appa's own voice and the server scores against that recording.
   /// Otherwise the three bundled adult recordings are used.
-  static List<PracticeItem> phonetic({int count = 8, FamilyVoiceStore? store}) {
+  static List<PracticeItem> phonetic({
+    int count = 8,
+    FamilyVoiceStore? store,
+    Language? language,
+  }) =>
+      fromFamilyOrBundled(
+        [
+          ...familyWords(language: language),
+          ...familySounds(language: language),
+          ...familySentences(language: language),
+        ],
+        count: count,
+        store: store,
+      );
+
+  /// Up to [count] of [recordable] that have a Family Voice recording, in
+  /// random order; the bundled recordings when none do.
+  static List<PracticeItem> fromFamilyOrBundled(
+    List<PracticeItem> recordable, {
+    int count = 8,
+    FamilyVoiceStore? store,
+  }) {
     final s = store ?? FamilyVoiceStore.instance;
-    final family = [...familyWords(), ...familySounds(), ...familySentences()]
-        .where((i) => s.has(i.voiceKey))
-        .toList()
+    final family = recordable.where((i) => s.has(i.voiceKey)).toList()
       ..shuffle();
     if (family.isNotEmpty) return family.take(count).toList();
     return bundledPhonetic;
   }
 
-  /// Items with a bundled fluent-speaker recording. These are scored by
-  /// the acoustic server when it is reachable.
+  /// Items with a bundled fluent-speaker recording (an adult Tamil voice).
+  /// These are scored by the acoustic server when it is reachable.
   static const List<PracticeItem> bundledPhonetic = [
         PracticeItem(
           id: 'phonetic_vannakam',
@@ -289,13 +387,15 @@ abstract final class PracticeCatalog {
 
   /// Sound check: 6 sounds, 8 picture words chosen to cover early and late
   /// sounds (ப ம த க ந early; ச ல ழ late), 6 short phrases.
-  static List<PracticeItem> assessment() {
+  static List<PracticeItem> assessment({Language? language}) {
     const checkWords = [
       'cat', 'fish', 'cap', 'car', 'dog', 'lion', 'balloon', 'rain',
     ];
+    final ta = _isTa(language);
+    final locale = _loc(ta);
     final byId = {for (final w in kidWords) w.id: w};
     return [
-      for (final (i, item) in letters(count: 6).indexed)
+      for (final (i, item) in letters(count: 6, language: language).indexed)
         PracticeItem(
           id: 'assess_letter_$i',
           target: item.target,
@@ -306,34 +406,34 @@ abstract final class PracticeCatalog {
       for (final (i, id) in checkWords.indexed)
         PracticeItem(
           id: 'assess_word_$i',
-          target: _ta ? byId[id]!.ta : byId[id]!.en,
-          alternates: _ta ? [...byId[id]!.taAlternates, byId[id]!.en] : const [],
-          meaning: _ta ? byId[id]!.en : null,
+          target: ta ? byId[id]!.ta : byId[id]!.en,
+          alternates: ta ? [...byId[id]!.taAlternates, byId[id]!.en] : const [],
+          meaning: ta ? byId[id]!.en : null,
           emoji: byId[id]!.emoji,
-          locale: _locale,
-          familyKey: 'kid_${id}_${_locale.split('-').first}',
+          locale: locale,
+          familyKey: 'kid_${id}_${locale.split('-').first}',
         ),
-      for (final (i, (ta, spoken, en)) in _kidSentences.take(6).indexed)
+      for (final (i, (tamil, spoken, en)) in _kidSentences.take(6).indexed)
         PracticeItem(
           id: 'assess_sentence_$i',
-          target: _ta ? ta : en,
-          alternates: _ta ? [...spoken, en] : const [],
-          meaning: _ta ? en : null,
-          locale: _locale,
-          familyKey: '${_sentenceId(en)}_${_locale.split('-').first}',
+          target: ta ? tamil : en,
+          alternates: ta ? [...spoken, en] : const [],
+          meaning: ta ? en : null,
+          locale: locale,
+          familyKey: '${_sentenceId(en)}_${locale.split('-').first}',
         ),
     ];
   }
 
-  /// Follow-up drill for sounds the child found hard.
-  static List<PracticeItem> drill(List<String> letters) => [
+  /// Follow-up drill for sounds that were hard.
+  static List<PracticeItem> drill(List<String> letters, {Language? language}) => [
         for (final l in letters.take(3))
           for (final (i, d) in drillsForLetter(l).indexed)
             PracticeItem(
               id: 'drill_${l.codeUnits.join('_')}_$i',
               target: d.prompt,
               meaning: d.hint,
-              locale: _locale,
+              locale: _loc(_isTa(language)),
             ),
       ];
 

@@ -1,3 +1,4 @@
+import 'package:aphora/data/learning/packs/condition_packs.dart';
 import 'package:aphora/data/learning/practice_catalog.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/comfort_settings.dart';
@@ -20,25 +21,24 @@ class PlanStep {
   final int minutes;
   final IconData icon;
 
+  /// About 10 minutes from the person's pack, at their level (therapist's
+  /// choice, else check-up / intake).
   static List<PlanStep> forUser(UserModel? user) {
-    PlanStep k(PracticeKind kind) =>
-        PlanStep(kind.id, kind, kind.title, kind.minutes, kind.icon);
-    final picture = PlanStep(
-      'picture',
-      null,
-      tr('Picture match', 'படப் பொருத்தம்'),
-      3,
-      Icons.grid_view_rounded,
+    final pack = ConditionPacks.forUser(user);
+    final ids = pack.plan(
+      level: user?.practiceLevel ?? 2,
+      focus: user?.intake?.focus ?? const [],
     );
-    return switch (user?.recommendedFocus) {
-      'letters' => [k(PracticeKind.letters), k(PracticeKind.words), picture],
-      'sentences' => [
-          k(PracticeKind.words),
-          k(PracticeKind.sentences),
-          k(PracticeKind.naming),
-        ],
-      _ => [k(PracticeKind.letters), k(PracticeKind.words), k(PracticeKind.naming)],
-    };
+    return [
+      for (final id in ids)
+        if (id == ConditionPack.pictureMatchId)
+          PlanStep(id, null, pack.matchTitle, 3, Icons.grid_view_rounded)
+        else
+          for (final kind in PracticeKind.values)
+            if (kind.id == id)
+              PlanStep(id, kind, pack.title(kind), pack.minutes(kind),
+                  pack.icon(kind)),
+    ];
   }
 }
 
@@ -175,15 +175,22 @@ class _HomePageState extends State<HomePage> {
                 },
               ),
             ],
-            if (user != null && user.preAssessmentScore == null) ...[
+            if (user != null &&
+                user.preAssessmentScore == null &&
+                ConditionPacks.forUser(user).hasCheckUp) ...[
               const Gap(AphSpace.md),
               ActionTile(
                 icon: Icons.assignment_rounded,
                 title: tr('Start with a speech check-up', 'பேச்சு மதிப்பீட்டுடன் தொடங்குங்கள்'),
-                subtitle: tr(
-                  'About ${PracticeKind.assessment.minutes} minutes. It helps us choose the right exercises for your child.',
-                  'சுமார் ${PracticeKind.assessment.minutes} நிமிடம். உங்கள் குழந்தைக்கு ஏற்ற பயிற்சிகளைத் தேர்ந்தெடுக்க உதவும்.',
-                ),
+                subtitle: ConditionPacks.childWording(user)
+                    ? tr(
+                        'About ${PracticeKind.assessment.minutes} minutes. It helps us choose the right exercises for your child.',
+                        'சுமார் ${PracticeKind.assessment.minutes} நிமிடம். உங்கள் குழந்தைக்கு ஏற்ற பயிற்சிகளைத் தேர்ந்தெடுக்க உதவும்.',
+                      )
+                    : tr(
+                        'About ${PracticeKind.assessment.minutes} minutes. It helps choose a good starting level.',
+                        'சுமார் ${PracticeKind.assessment.minutes} நிமிடம். சரியான தொடக்க நிலையைத் தேர்ந்தெடுக்க உதவும்.',
+                      ),
                 color: AphColors.accent,
                 softColor: AphColors.accentSoft,
                 onTap: () async {

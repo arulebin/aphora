@@ -1,3 +1,4 @@
+import 'package:aphora/data/learning/packs/condition_packs.dart';
 import 'package:aphora/data/learning/practice_catalog.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/comfort_settings.dart';
@@ -11,8 +12,26 @@ import 'package:aphora/ui/practice/picture_match_page.dart';
 import 'package:aphora/ui/practice/practice_session_page.dart';
 import 'package:flutter/material.dart';
 
-/// All exercises, grouped by what they train. Replaces the old
-/// "Clinical Assessment" tab with its Easy/Medium/Hard levels.
+/// Colours per exercise, so a tile looks the same on every screen.
+(Color, Color) kindColors(PracticeKind kind) => switch (kind) {
+      PracticeKind.letters ||
+      PracticeKind.automatic =>
+        (AphColors.letters, AphColors.lettersSoft),
+      PracticeKind.words ||
+      PracticeKind.repetition =>
+        (AphColors.words, AphColors.wordsSoft),
+      PracticeKind.naming => (AphColors.naming, AphColors.namingSoft),
+      PracticeKind.sentences ||
+      PracticeKind.completion =>
+        (AphColors.sentences, AphColors.sentencesSoft),
+      PracticeKind.functional => (AphColors.accent, AphColors.accentSoft),
+      PracticeKind.clearSpeech => (AphColors.info, AphColors.infoSoft),
+      _ => (AphColors.primary, AphColors.primarySoft),
+    };
+
+/// All exercises of the person's condition pack, grouped by what they
+/// train. Replaces the old "Clinical Assessment" tab with its
+/// Easy/Medium/Hard levels.
 class PracticeHubPage extends StatelessWidget {
   const PracticeHubPage({super.key});
 
@@ -21,40 +40,51 @@ class PracticeHubPage extends StatelessWidget {
     return ValueListenableBuilder<UserModel?>(
       valueListenable: Locator.userDatabaseService.currentUser,
       builder: (context, user, _) {
-        final recommended = PracticeCatalog.kindForFocus(user?.recommendedFocus);
-        Widget tile(
-          PracticeKind kind,
-          Color color,
-          Color soft,
-        ) =>
-            Padding(
-              padding: const EdgeInsets.only(bottom: AphSpace.sm),
-              child: ActionTile(
-                icon: kind.icon,
-                title: kind.title,
-                subtitle: kind.description,
-                color: color,
-                softColor: soft,
-                badge: user?.recommendedFocus != null && kind == recommended
-                    ? tr('Recommended for you', 'உங்களுக்குப் பரிந்துரை')
-                    : null,
-                onTap: () => openPractice(context, kind),
-              ),
-            );
+        final pack = ConditionPacks.forUser(user);
+        final child = ConditionPacks.childWording(user);
+        final recommended = pack.recommendedKind(
+          level: user?.practiceLevel ?? 2,
+          focus: user?.intake?.focus ?? const [],
+        );
+        // Only once something (intake, check-up, therapist) chose a level.
+        final hasPlan = user != null &&
+            (user.recommendedFocus != null ||
+                user.intake != null ||
+                user.therapistLevel != null);
+        Widget tile(PracticeKind kind) {
+          final (color, soft) = kindColors(kind);
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AphSpace.sm),
+            child: ActionTile(
+              icon: pack.icon(kind),
+              title: pack.title(kind),
+              subtitle: pack.description(kind),
+              color: color,
+              softColor: soft,
+              badge: hasPlan && kind == recommended
+                  ? tr('Recommended for you', 'உங்களுக்குப் பரிந்துரை')
+                  : null,
+              onTap: () => openPractice(context, kind),
+            ),
+          );
+        }
+
+        final pending = user != null &&
+            ConditionPacks.contentPending(user.activeCondition);
 
         return AphScaffold(
           title: tr('Practice', 'பயிற்சி'),
           showBack: false,
           children: [
             const VoiceCheckBanner(),
-            if (user?.condition.contentPending ?? false) ...[
+            if (pending) ...[
               FeedbackBanner(
                 tone: FeedbackTone.info,
                 title: tr('Your exercises are being prepared',
                     'உங்களுக்கான பயிற்சிகள் தயாராகி வருகின்றன'),
                 message: tr(
-                  'Exercises for "${user!.condition.english}" are not ready yet. For now, use the general practice set below.',
-                  '"${user.condition.tamil}" பயிற்சிகள் இன்னும் தயாராகவில்லை. இப்போதைக்குக் கீழே உள்ள பொதுப் பயிற்சிகளைப் பயன்படுத்துங்கள்.',
+                  'Exercises for "${user.activeCondition.english}" are not ready yet. For now, use the general practice set below.',
+                  '"${user.activeCondition.tamil}" பயிற்சிகள் இன்னும் தயாராகவில்லை. இப்போதைக்குக் கீழே உள்ள பொதுப் பயிற்சிகளைப் பயன்படுத்துங்கள்.',
                 ),
               ),
               const Gap(AphSpace.md),
@@ -65,21 +95,28 @@ class PracticeHubPage extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyLarge,
             ),
             const Gap(AphSpace.md),
-            const _ParentModeSwitch(),
+            _ParentModeSwitch(child: child),
             const Gap(AphSpace.sm),
             ValueListenableBuilder<Set<String>>(
               valueListenable: FamilyVoiceStore.instance.recorded,
               builder: (context, _, _) {
-                final words = PracticeCatalog.familyWords();
+                final words = pack
+                    .familyVoiceSets(language: LanguageService.currentLanguage)
+                    .first
+                    .items;
                 final done = FamilyVoiceStore.instance
                     .countRecorded(words.map((w) => w.voiceKey));
                 return ActionTile(
                   key: const ValueKey('hub_family_voice'),
                   icon: Icons.record_voice_over_rounded,
                   title: tr('Family Voice', 'குடும்பக் குரல்'),
-                  subtitle: tr(
-                      'Record words in your own voice · $done of ${words.length} words recorded',
-                      'உங்கள் குரலில் சொற்களைப் பதிவு செய்யுங்கள் · ${words.length} இல் $done'),
+                  subtitle: child
+                      ? tr(
+                          'Record words in your own voice · $done of ${words.length} words recorded',
+                          'உங்கள் குரலில் சொற்களைப் பதிவு செய்யுங்கள் · ${words.length} இல் $done')
+                      : tr(
+                          'Record words in a familiar voice · $done of ${words.length} words recorded',
+                          'பழக்கமான குரலில் சொற்களைப் பதிவு செய்யுங்கள் · ${words.length} இல் $done'),
                   color: AphColors.accent,
                   softColor: AphColors.accentSoft,
                   onTap: () => Navigator.push(
@@ -90,39 +127,38 @@ class PracticeHubPage extends StatelessWidget {
               },
             ),
             SectionHeader(tr('Speaking', 'பேசுதல்')),
-            tile(PracticeKind.letters, AphColors.letters, AphColors.lettersSoft),
-            tile(PracticeKind.words, AphColors.words, AphColors.wordsSoft),
-            tile(PracticeKind.naming, AphColors.naming, AphColors.namingSoft),
-            tile(PracticeKind.sentences, AphColors.sentences, AphColors.sentencesSoft),
-            tile(PracticeKind.phonetic, AphColors.primary, AphColors.primarySoft),
-            SectionHeader(tr('Understanding', 'புரிந்துகொள்ளுதல்')),
-            Padding(
-              padding: const EdgeInsets.only(bottom: AphSpace.sm),
-              child: ActionTile(
-                icon: Icons.grid_view_rounded,
-                title: tr('Picture match', 'படப் பொருத்தம்'),
-                subtitle: tr('Hear a word and tap its picture — no speaking needed',
-                    'சொல்லைக் கேட்டு படத்தைத் தட்டுங்கள் — பேச வேண்டியதில்லை'),
-                color: AphColors.info,
-                softColor: AphColors.infoSoft,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PictureMatchPage()),
+            for (final kind in pack.speakingKinds) tile(kind),
+            if (pack.hasPictureMatch) ...[
+              SectionHeader(tr('Understanding', 'புரிந்துகொள்ளுதல்')),
+              Padding(
+                padding: const EdgeInsets.only(bottom: AphSpace.sm),
+                child: ActionTile(
+                  icon: Icons.grid_view_rounded,
+                  title: pack.matchTitle,
+                  subtitle: pack.matchDescription,
+                  color: AphColors.info,
+                  softColor: AphColors.infoSoft,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PictureMatchPage()),
+                  ),
                 ),
               ),
-            ),
-            SectionHeader(tr('Check-up', 'மதிப்பீடு')),
-            ActionTile(
-              icon: PracticeKind.assessment.icon,
-              title: PracticeKind.assessment.title,
-              subtitle: user?.preAssessmentScore == null
-                  ? PracticeKind.assessment.description
-                  : tr('Last score ${user!.preAssessmentScore!.round()} — retake to update your plan',
-                      'கடைசி மதிப்பெண் ${user.preAssessmentScore!.round()} — திட்டத்தைப் புதுப்பிக்க மீண்டும் எடுங்கள்'),
-              color: AphColors.accent,
-              softColor: AphColors.accentSoft,
-              onTap: () => openPractice(context, PracticeKind.assessment),
-            ),
+            ],
+            if (pack.hasCheckUp) ...[
+              SectionHeader(tr('Check-up', 'மதிப்பீடு')),
+              ActionTile(
+                icon: pack.icon(PracticeKind.assessment),
+                title: pack.title(PracticeKind.assessment),
+                subtitle: user?.preAssessmentScore == null
+                    ? pack.description(PracticeKind.assessment)
+                    : tr('Last score ${user!.preAssessmentScore!.round()} — retake to update your plan',
+                        'கடைசி மதிப்பெண் ${user.preAssessmentScore!.round()} — திட்டத்தைப் புதுப்பிக்க மீண்டும் எடுங்கள்'),
+                color: AphColors.accent,
+                softColor: AphColors.accentSoft,
+                onTap: () => openPractice(context, PracticeKind.assessment),
+              ),
+            ],
           ],
         );
       },
@@ -131,9 +167,13 @@ class PracticeHubPage extends StatelessWidget {
 }
 
 /// Parent mode = the existing assisted mode, reworded for families: big
-/// pictures, few words, stars after each correct try.
+/// pictures, few words, stars after each correct try. For adults it is
+/// carer mode: a hand-over screen and a helper note, no stars.
 class _ParentModeSwitch extends StatelessWidget {
-  const _ParentModeSwitch();
+  const _ParentModeSwitch({required this.child});
+
+  /// Children's wording.
+  final bool child;
 
   @override
   Widget build(BuildContext context) {
@@ -150,10 +190,16 @@ class _ParentModeSwitch extends StatelessWidget {
             onChanged: (v) => mode.value = v,
             secondary: const Icon(Icons.family_restroom_rounded,
                 color: AphColors.accent),
-            title: Text(tr('Practise together (parent mode)',
-                'சேர்ந்து பயிற்சி (பெற்றோர் முறை)')),
-            subtitle: Text(tr('Big pictures and stars for your child',
-                'குழந்தைக்குப் பெரிய படங்களும் நட்சத்திரங்களும்')),
+            title: Text(child
+                ? tr('Practise together (parent mode)',
+                    'சேர்ந்து பயிற்சி (பெற்றோர் முறை)')
+                : tr('Practise with a helper (carer mode)',
+                    'உதவியாளருடன் பயிற்சி (பராமரிப்பாளர் முறை)')),
+            subtitle: Text(child
+                ? tr('Big pictures and stars for your child',
+                    'குழந்தைக்குப் பெரிய படங்களும் நட்சத்திரங்களும்')
+                : tr('A hand-over screen to start and a note for the therapist at the end',
+                    'தொடக்கத்தில் ஒப்படைப்புத் திரை, முடிவில் சிகிச்சையாளருக்கான குறிப்பு')),
           ),
         ),
       ),

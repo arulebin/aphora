@@ -49,9 +49,6 @@ enum Condition {
         Condition.unknown => 'No pack yet (general practice)',
       };
 
-  /// Only the children's pack has its own exercises so far. The aphasia and
-  /// oral-cancer packs use the general practice set until their content is
-  /// built — the app says so instead of pretending.
-  bool get contentPending =>
-      this == Condition.adultAphasia || this == Condition.oralCancerRehab;
+  // Whether a condition has its own exercises yet is decided by the pack
+  // registry: `ConditionPacks.contentPending`.
 }

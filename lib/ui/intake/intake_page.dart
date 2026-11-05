@@ -1,5 +1,6 @@
 import 'package:aphora/data/intake/condition.dart';
 import 'package:aphora/data/intake/intake_questions.dart';
+import 'package:aphora/data/learning/packs/condition_packs.dart';
 import 'package:aphora/data/learning/practice_catalog.dart';
 import 'package:aphora/logic/intake_engine.dart';
 import 'package:aphora/logic/language_service.dart';
@@ -328,7 +329,7 @@ class _IntakePageState extends State<IntakePage> {
             ],
           ),
         ),
-        if (r.condition.contentPending) ...[
+        if (ConditionPacks.contentPending(r.condition)) ...[
           const Gap(AphSpace.md),
           FeedbackBanner(
             tone: FeedbackTone.info,

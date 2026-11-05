@@ -1,3 +1,4 @@
+import 'package:aphora/data/learning/packs/condition_packs.dart';
 import 'package:aphora/data/learning/practice_catalog.dart';
 import 'package:aphora/data/models/practice_record.dart';
 import 'package:aphora/data/models/usermodel.dart';
@@ -184,7 +185,7 @@ class ProgressBody extends StatelessWidget {
                       children: [
                         for (final (i, e) in byCat.entries.indexed) ...[
                           if (i > 0) const Gap(AphSpace.md),
-                          MeterRow(label: _catName(e.key), value: avg(e.value)),
+                          MeterRow(label: _catName(e.key, user), value: avg(e.value)),
                         ],
                       ],
                     ),
@@ -224,12 +225,13 @@ class ProgressBody extends StatelessWidget {
   }
 
   /// Same names as the Practice tab, so "By exercise" matches the tiles.
-  static String _catName(String c) {
+  static String _catName(String c, UserModel user) {
+    final pack = ConditionPacks.forUser(user);
     for (final k in PracticeKind.values) {
-      if (k.id == c) return k.title;
+      if (k.id == c) return pack.title(k);
     }
     return switch (c) {
-      'picture' => tr('Picture match', 'படப் பொருத்தம்'),
+      'picture' => pack.matchTitle,
       _ => c,
     };
   }

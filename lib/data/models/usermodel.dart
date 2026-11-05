@@ -1,4 +1,5 @@
 import 'package:aphora/data/intake/condition.dart';
+import 'package:aphora/data/intake/intake_questions.dart';
 import 'package:aphora/data/intake/intake_record.dart';
 
 class UserModel {
@@ -64,11 +65,37 @@ class UserModel {
   /// The latest completed intake questionnaire, or null if never answered.
   final IntakeRecord? intake;
 
+  /// Pack chosen by the linked therapist (`therapistCondition`); overrides
+  /// [condition]. Null = follow the intake.
+  final Condition? therapistCondition;
+
+  /// Level 1–3 chosen by the linked therapist; overrides the intake start
+  /// level and the check-up. Null = not set.
+  final int? therapistLevel;
+
+  /// The pack the person practises with: the therapist's choice, else the
+  /// intake result.
+  Condition get activeCondition => therapistCondition ?? condition;
+
+  /// The level (1–3) exercises start at: the therapist's choice, else the
+  /// latest check-up or intake (both stored as `recommendedFocus`), else
+  /// the intake start level, else 2.
+  int get practiceLevel {
+    final t = therapistLevel;
+    if (t != null && t >= 1 && t <= 3) return t;
+    return StartLevel.fromLegacyFocus(recommendedFocus) ??
+        intake?.startLevel.clamp(1, 3) ??
+        2;
+  }
+
+  /// The therapist set the pack or the level.
+  bool get setByTherapist => therapistCondition != null || therapistLevel != null;
+
   /// Child wording applies to the children's pack and to older accounts
   /// that never answered the intake (all of them were children's accounts).
   bool get isChild =>
-      condition == Condition.childSpeechDelay ||
-      (condition == Condition.unknown && intake == null);
+      activeCondition == Condition.childSpeechDelay ||
+      (activeCondition == Condition.unknown && intake == null);
 
   // Caregiver/Therapist linkage (holds the therapist's 6-char code).
   String? linkedCaregiverId;
@@ -121,6 +148,8 @@ class UserModel {
     this.therapistNote,
     this.condition = Condition.unknown,
     this.intake,
+    this.therapistCondition,
+    this.therapistLevel,
     required this.createdAt,
     required this.updatedAt,
   }) : dailyActivity = dailyActivity ?? <String, int>{},
@@ -154,6 +183,8 @@ class UserModel {
       'therapistNote': therapistNote,
       'condition': condition.id,
       if (intake != null) 'intake': intake!.toMap(),
+      'therapistCondition': therapistCondition?.id,
+      'therapistLevel': therapistLevel,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -192,6 +223,8 @@ class UserModel {
       therapistNote: map['therapistNote'] as String?,
       condition: Condition.fromId(map['condition']),
       intake: IntakeRecord.tryFromMap(map['intake']),
+      therapistCondition: parseTherapistCondition(map['therapistCondition']),
+      therapistLevel: parseTherapistLevel(map['therapistLevel']),
       createdAt: DateTime.parse(
         map['createdAt'] ?? DateTime.now().toIso8601String(),
       ),
@@ -200,6 +233,24 @@ class UserModel {
       ),
     );
   }
+
+  /// Null for missing, unknown or unrecognised values.
+  static Condition? parseTherapistCondition(Object? raw) {
+    if (raw == null) return null;
+    final c = Condition.fromId(raw);
+    return c == Condition.unknown ? null : c;
+  }
+
+  /// Null unless 1–3.
+  static int? parseTherapistLevel(Object? raw) {
+    final n = raw is num ? raw.toInt() : int.tryParse('${raw ?? ''}');
+    return n != null && n >= 1 && n <= 3 ? n : null;
+  }
+
+  /// Fields only the linked therapist writes. The patient's own
+  /// whole-document updates leave them out, so a stale copy on the phone
+  /// never overwrites the therapist's latest note or plan.
+  static const therapistFields = ['therapistNote', 'therapistCondition', 'therapistLevel'];
 
   // CopyWith (for updates)
   UserModel copyWith({
@@ -255,6 +306,8 @@ class UserModel {
       therapistNote: therapistNote ?? this.therapistNote,
       condition: condition ?? this.condition,
       intake: intake ?? this.intake,
+      therapistCondition: therapistCondition,
+      therapistLevel: therapistLevel,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );

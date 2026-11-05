@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:aphora/data/learning/kids_words.dart';
+import 'package:aphora/data/learning/packs/condition_packs.dart';
 import 'package:aphora/data/models/practice_record.dart';
 import 'package:aphora/logic/comfort_settings.dart';
 import 'package:aphora/logic/language_service.dart';
@@ -10,52 +10,41 @@ import 'package:aphora/ui/design/components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Listening comprehension: hear (and see) a word, tap the matching picture.
-/// No speaking needed, so it suits children who are not talking yet.
+/// Listening comprehension: hear (and see) a word — or, for adults at
+/// level 3, a description — and tap the matching picture. No speaking
+/// needed, so it suits children who are not talking yet and adults with
+/// severe aphasia. Rounds come from the person's condition pack.
 class PictureMatchPage extends StatefulWidget {
-  const PictureMatchPage({super.key, this.rounds = 10});
+  const PictureMatchPage({super.key, this.rounds = 10, this.pack, this.level});
   final int rounds;
+
+  /// Defaults to `ConditionPacks.current`.
+  final ConditionPack? pack;
+
+  /// 1–3; defaults to the person's practice level.
+  final int? level;
 
   @override
   State<PictureMatchPage> createState() => _PictureMatchPageState();
 }
 
-class _Round {
-  _Round(this.answer, this.options);
-  final KidWord answer;
-  final List<KidWord> options;
-}
-
 class _PictureMatchPageState extends State<PictureMatchPage> {
   final _rng = Random();
   final _started = DateTime.now();
-  late final List<_Round> _rounds = _build();
+  late final ConditionPack _pack = widget.pack ?? ConditionPacks.current;
+  late final List<MatchRound> _rounds = _pack.matchRounds(
+    level: widget.level ?? ConditionPacks.currentLevel,
+    language: LanguageService.currentLanguage,
+    count: widget.rounds,
+    random: _rng,
+  );
   int _index = 0;
   int? _picked;
   int _correct = 0;
   bool _done = false;
   bool _showWord = true;
 
-  bool get _ta => LanguageService.currentLanguage == Language.tamil;
-  _Round get _round => _rounds[_index];
-  String _word(KidWord q) => _ta ? q.ta : q.en;
-
-  List<_Round> _build() {
-    final pool = List<KidWord>.from(kidWords)..shuffle(_rng);
-    return [
-      for (final answer in pool.take(widget.rounds))
-        _Round(
-          answer,
-          ([
-            answer,
-            ...(kidWords.where((q) =>
-                    q.id != answer.id && q.category != answer.category).toList()
-                  ..shuffle(_rng))
-                .take(3),
-          ]..shuffle(_rng)),
-        ),
-    ];
-  }
+  MatchRound get _round => _rounds[_index];
 
   @override
   void initState() {
@@ -71,7 +60,7 @@ class _PictureMatchPageState extends State<PictureMatchPage> {
 
   void _say() {
     if (ComfortSettings.instance.autoReadAloud.value) {
-      SpeechService.shared.speakText(_word(_round.answer));
+      SpeechService.shared.speakText(_round.prompt);
     }
   }
 
@@ -88,8 +77,8 @@ class _PictureMatchPageState extends State<PictureMatchPage> {
           taskId: 'match_${_round.answer.id}',
           accuracy: right ? 100 : 0,
           category: 'picture',
-          target: _word(_round.answer),
-          spoken: _word(_round.options[i]),
+          target: _round.answer.label,
+          spoken: _round.options[i].label,
           method: 'tap',
           assisted: ComfortSettings.instance.assistedMode.value,
         )
@@ -103,7 +92,7 @@ class _PictureMatchPageState extends State<PictureMatchPage> {
       try {
         await Locator.userDatabaseService.recordSession(SessionRecord(
           kind: 'picture',
-          title: 'Picture match',
+          title: _pack.matchTitle,
           itemCount: _rounds.length,
           averageScore: score,
           minutes: (DateTime.now().difference(_started).inSeconds / 60).ceil(),
@@ -129,7 +118,7 @@ class _PictureMatchPageState extends State<PictureMatchPage> {
     if (_done) {
       final score = _correct * 100 / _rounds.length;
       return AphScaffold(
-        title: tr('Picture match', 'படப் பொருத்தம்'),
+        title: _pack.matchTitle,
         showBack: false,
         bottom: AphButton(
           label: tr('Done', 'முடிந்தது'),
@@ -154,7 +143,7 @@ class _PictureMatchPageState extends State<PictureMatchPage> {
     final right =
         answered && _round.options[_picked!].id == _round.answer.id;
     return AphScaffold(
-      title: tr('Picture match', 'படப் பொருத்தம்'),
+      title: _pack.matchTitle,
       actions: [
         IconButton(
           tooltip: _showWord
@@ -178,20 +167,23 @@ class _PictureMatchPageState extends State<PictureMatchPage> {
       children: [
         StepProgress(current: _index + 1, total: _rounds.length),
         const Gap(AphSpace.lg),
-        Text(tr('Tap the picture for:', 'இதற்கான படத்தைத் தட்டவும்:'),
+        Text(
+            _round.isQuestion
+                ? tr('Which picture is it?', 'எந்தப் படம்?')
+                : tr('Tap the picture for:', 'இதற்கான படத்தைத் தட்டவும்:'),
             style: t.titleLarge),
         const Gap(AphSpace.sm),
         Row(
           children: [
             Expanded(
               child: Text(
-                _showWord ? _word(_round.answer) : '• • •',
-                style: t.displaySmall,
+                _showWord ? _round.prompt : '• • •',
+                style: _round.isQuestion ? t.headlineSmall : t.displaySmall,
               ),
             ),
             ReadAloudButton(
               key: ValueKey(_index),
-              text: _word(_round.answer),
+              text: _round.prompt,
               compact: true,
             ),
           ],
@@ -215,7 +207,7 @@ class _PictureMatchPageState extends State<PictureMatchPage> {
                         : i == _picked
                             ? _OptState.wrong
                             : _OptState.dim,
-                label: answered ? _word(_round.options[i]) : null,
+                label: answered ? _round.options[i].label : null,
                 onTap: () => _pick(i),
               ),
           ],
@@ -240,6 +232,32 @@ class _PictureMatchPageState extends State<PictureMatchPage> {
 
 enum _OptState { idle, correct, wrong, dim }
 
+/// Emoji (children), photo or plain icon (adults).
+Widget _matchPicture(MatchCard q) {
+  if (q.emoji != null) {
+    return FittedBox(
+      child: Text(q.emoji!, style: const TextStyle(fontSize: 96)),
+    );
+  }
+  if (q.imagePath != null) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AphRadius.md),
+      child: Image.asset(
+        q.imagePath!,
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => Icon(
+          q.icon ?? Icons.image_not_supported_rounded,
+          size: 64,
+          color: AphColors.inkSubtle,
+        ),
+      ),
+    );
+  }
+  return FittedBox(
+    child: Icon(q.icon, size: 96, color: AphColors.inkMuted),
+  );
+}
+
 class _Option extends StatelessWidget {
   const _Option({
     required this.q,
@@ -249,11 +267,13 @@ class _Option extends StatelessWidget {
     this.label,
   });
 
-  final KidWord q;
+  final MatchCard q;
   final int index;
   final _OptState state;
   final VoidCallback onTap;
   final String? label;
+
+  Widget _picture() => _matchPicture(q);
 
   @override
   Widget build(BuildContext context) {
@@ -289,11 +309,7 @@ class _Option extends StatelessWidget {
                     padding: const EdgeInsets.all(AphSpace.sm),
                     child: Column(
                       children: [
-                        Expanded(
-                          child: FittedBox(
-                            child: Text(q.emoji, style: const TextStyle(fontSize: 96)),
-                          ),
-                        ),
+                        Expanded(child: _picture()),
                         if (label != null)
                           Text(
                             label!,

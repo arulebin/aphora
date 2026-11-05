@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:aphora/data/learning/packs/condition_packs.dart';
 import 'package:aphora/data/learning/practice_catalog.dart';
 import 'package:aphora/logic/family_voice_store.dart';
 import 'package:aphora/logic/language_service.dart';
@@ -8,12 +9,11 @@ import 'package:aphora/ui/design/components.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
-enum _VoiceSet { words, sounds, sentences }
-
-/// Family Voice: Amma/Appa record the practice words in their own voice.
-/// Practice then plays the parent's voice instead of the phone's, and
-/// "Copy the voice" scores the child against it. Recordings never leave
-/// the phone.
+/// Family Voice: Amma/Appa (or, for an adult, a family member or carer)
+/// record the practice words in their own voice. Practice then plays that
+/// voice instead of the phone's, and "Copy the voice" scores against it.
+/// Recordings never leave the phone. What can be recorded comes from the
+/// person's condition pack (`ConditionPack.familyVoiceSets`).
 class FamilyVoicePage extends StatefulWidget {
   const FamilyVoicePage({super.key});
 
@@ -26,7 +26,11 @@ class _FamilyVoicePageState extends State<FamilyVoicePage> {
   final _recorder = VoiceRecorder();
   final _player = AudioPlayer();
 
-  _VoiceSet _set = _VoiceSet.words;
+  late final ConditionPack _pack = ConditionPacks.current;
+  late final bool _child = ConditionPacks.currentChildWording;
+  late final List<VoiceSet> _sets =
+      _pack.familyVoiceSets(language: LanguageService.currentLanguage);
+  late String _set = _sets.first.id;
   String? _recordingKey;
   String? _savingKey;
   String? _playingKey;
@@ -52,26 +56,12 @@ class _FamilyVoicePageState extends State<FamilyVoicePage> {
     super.dispose();
   }
 
-  List<PracticeItem> get _items => switch (_set) {
-    _VoiceSet.words => PracticeCatalog.familyWords(),
-    _VoiceSet.sounds => PracticeCatalog.familySounds(),
-    _VoiceSet.sentences => PracticeCatalog.familySentences(),
-  };
+  VoiceSet get _current =>
+      _sets.firstWhere((s) => s.id == _set, orElse: () => _sets.first);
 
-  String _progressLabel(int done, int total) => switch (_set) {
-    _VoiceSet.words => tr(
-      '$done of $total words recorded',
-      '$total சொற்களில் $done பதிவாகியுள்ளன',
-    ),
-    _VoiceSet.sounds => tr(
-      '$done of $total sounds recorded',
-      '$total ஒலிகளில் $done பதிவாகியுள்ளன',
-    ),
-    _VoiceSet.sentences => tr(
-      '$done of $total sentences recorded',
-      '$total வாக்கியங்களில் $done பதிவாகியுள்ளன',
-    ),
-  };
+  List<PracticeItem> get _items => _current.items;
+
+  String _progressLabel(int done, int total) => _current.progress(done, total);
 
   Future<void> _startRecording(PracticeItem item) async {
     if (_recordingKey != null || _savingKey != null) return;
@@ -182,10 +172,15 @@ class _FamilyVoicePageState extends State<FamilyVoicePage> {
           title: tr('Family Voice', 'குடும்பக் குரல்'),
           children: [
             Text(
-              tr(
-                'Record each word in your own voice. Your child will hear Amma or Appa instead of the phone.',
-                'ஒவ்வொரு சொல்லையும் உங்கள் குரலில் பதிவு செய்யுங்கள். குழந்தை தொலைபேசிக் குரலுக்குப் பதிலாக அம்மா/அப்பா குரலைக் கேட்கும்.',
-              ),
+              _child
+                  ? tr(
+                      'Record each word in your own voice. Your child will hear Amma or Appa instead of the phone.',
+                      'ஒவ்வொரு சொல்லையும் உங்கள் குரலில் பதிவு செய்யுங்கள். குழந்தை தொலைபேசிக் குரலுக்குப் பதிலாக அம்மா/அப்பா குரலைக் கேட்கும்.',
+                    )
+                  : tr(
+                      'Record each word in a familiar voice — yours or a family member’s. Practice then plays that voice instead of the phone.',
+                      'ஒவ்வொரு சொல்லையும் பழக்கமான குரலில் — உங்கள் குரலிலோ குடும்பத்தினர் குரலிலோ — பதிவு செய்யுங்கள். பயிற்சியில் தொலைபேசிக் குரலுக்குப் பதிலாக அந்தக் குரல் ஒலிக்கும்.',
+                    ),
               style: t.bodyLarge,
             ),
             const Gap(AphSpace.sm),
@@ -200,21 +195,13 @@ class _FamilyVoicePageState extends State<FamilyVoicePage> {
               ),
             ),
             const Gap(AphSpace.md),
-            ChoiceGroup<_VoiceSet>(
+            ChoiceGroup<String>(
               label: tr('What to record', 'எதைப் பதிவு செய்வது'),
               value: _set,
               onChanged: _recordingKey == null
                   ? (v) => setState(() => _set = v)
                   : (_) {},
-              options: [
-                (_VoiceSet.words, tr('Words', 'சொற்கள்'), Icons.image_rounded),
-                (_VoiceSet.sounds, tr('Sounds', 'ஒலிகள்'), Icons.abc_rounded),
-                (
-                  _VoiceSet.sentences,
-                  tr('Sentences', 'வாக்கியங்கள்'),
-                  Icons.forum_rounded,
-                ),
-              ],
+              options: [for (final s in _sets) (s.id, s.label, s.icon)],
             ),
             const Gap(AphSpace.md),
             Semantics(
@@ -255,6 +242,9 @@ class _FamilyVoicePageState extends State<FamilyVoicePage> {
       },
     );
   }
+
+  static bool _hasPicture(PracticeItem i) =>
+      i.emoji != null || i.imagePath != null || i.icon != null;
 
   Widget _row(BuildContext context, PracticeItem item) {
     final t = Theme.of(context).textTheme;
@@ -328,10 +318,26 @@ class _FamilyVoicePageState extends State<FamilyVoicePage> {
                     style: const TextStyle(fontSize: 30),
                     textAlign: TextAlign.center,
                   )
-                : Icon(
-                    has ? Icons.check_circle_rounded : Icons.circle_outlined,
-                    color: has ? AphColors.success : AphColors.inkSubtle,
-                  ),
+                : item.imagePath != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(AphRadius.sm),
+                        child: Image.asset(
+                          item.imagePath!,
+                          height: 40,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const Icon(
+                              Icons.image_rounded,
+                              color: AphColors.inkSubtle),
+                        ),
+                      )
+                    : item.icon != null
+                        ? Icon(item.icon, size: 30, color: AphColors.inkMuted)
+                        : Icon(
+                            has
+                                ? Icons.check_circle_rounded
+                                : Icons.circle_outlined,
+                            color: has ? AphColors.success : AphColors.inkSubtle,
+                          ),
           ),
           const Gap(AphSpace.xs),
           Expanded(
@@ -349,7 +355,7 @@ class _FamilyVoicePageState extends State<FamilyVoicePage> {
                   )
                 else if (item.meaning != null)
                   Text(item.meaning!, style: t.bodySmall),
-                if (has && item.emoji != null && !recording)
+                if (has && _hasPicture(item) && !recording)
                   Row(
                     children: [
                       const Icon(

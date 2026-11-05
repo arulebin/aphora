@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:aphora/data/intake/intake_questions.dart' show StartLevel;
 import 'package:aphora/data/learning/letter_training_data.dart';
 import 'package:aphora/data/aphora_api_service.dart' show AphoraApiException;
+import 'package:aphora/data/learning/packs/condition_packs.dart';
 import 'package:aphora/data/learning/practice_catalog.dart';
 import 'package:aphora/data/models/practice_record.dart';
 import 'package:aphora/logic/comfort_settings.dart';
@@ -31,12 +33,25 @@ Future<void> openPractice(
 }
 
 /// The single exercise engine: prompt → listen → score → feedback, for
-/// every speaking task in the app.
+/// every speaking task in the app. Content and wording come from the
+/// signed-in person's condition pack unless [pack] / [items] are given.
 class PracticeSessionPage extends StatefulWidget {
-  const PracticeSessionPage({super.key, required this.kind, this.items});
+  const PracticeSessionPage({
+    super.key,
+    required this.kind,
+    this.items,
+    this.pack,
+    this.level,
+  });
 
   final PracticeKind kind;
   final List<PracticeItem>? items;
+
+  /// Defaults to `ConditionPacks.current`.
+  final ConditionPack? pack;
+
+  /// 1–3; defaults to the person's practice level.
+  final int? level;
 
   @override
   State<PracticeSessionPage> createState() => _PracticeSessionPageState();
@@ -67,8 +82,20 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
   final _note = TextEditingController();
   final _started = DateTime.now();
 
-  late final List<PracticeItem> _items =
-      widget.items ?? PracticeCatalog.items(widget.kind);
+  late final ConditionPack _pack = widget.pack ?? ConditionPacks.current;
+
+  /// Children's wording (parent mode, stars). Adults get a calm
+  /// "well done", a score and helper/carer wording.
+  late final bool _child = widget.pack?.forChildren ?? ConditionPacks.currentChildWording;
+
+  late final List<PracticeItem> _items = widget.items ??
+      _pack.items(
+        widget.kind,
+        level: widget.level ?? ConditionPacks.currentLevel,
+        language: LanguageService.currentLanguage,
+      );
+
+  String get _title => _pack.title(widget.kind);
   late _Phase _phase =
       ComfortSettings.instance.assistedMode.value ? _Phase.handoff : _Phase.prompt;
 
@@ -384,7 +411,7 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
           (DateTime.now().difference(_started).inSeconds / 60).ceil();
       await Locator.userDatabaseService.recordSession(SessionRecord(
         kind: widget.kind.id,
-        title: widget.kind.title,
+        title: _title,
         itemCount: _best.length,
         averageScore: _average,
         minutes: minutes,
@@ -456,12 +483,18 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
     );
   }
 
-  /// Parent mode start screen: one short line for the parent.
+  /// Parent / carer mode start screen: one short line for the helper.
   Widget _buildHandoff(BuildContext context) {
     final t = Theme.of(context).textTheme;
-    final name = Locator.userDatabaseService.currentUser.value?.name ?? '';
+    String name;
+    try {
+      name = Locator.userDatabaseService.currentUser.value?.name ?? '';
+    } catch (_) {
+      name = '';
+    }
+    if (!_child) return _buildAdultHandoff(context, name.split(' ').first);
     return AphScaffold(
-      title: widget.kind.title,
+      title: _title,
       bottom: AphButton(
         key: const ValueKey('session_start'),
         label: tr('Start', 'தொடங்கு'),
@@ -504,19 +537,74 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
     );
   }
 
+  /// Carer mode start screen for an adult: calm, no cartoons.
+  Widget _buildAdultHandoff(BuildContext context, String name) {
+    final t = Theme.of(context).textTheme;
+    final minutes = _pack.minutes(widget.kind);
+    return AphScaffold(
+      title: _title,
+      bottom: AphButton(
+        key: const ValueKey('session_start'),
+        label: tr('Start', 'தொடங்கு'),
+        icon: Icons.play_arrow_rounded,
+        onPressed: () {
+          setState(() => _phase = _Phase.prompt);
+          _onItemShown();
+        },
+      ),
+      children: [
+        const Gap(AphSpace.xl),
+        const Center(
+          child: Icon(Icons.people_alt_rounded,
+              size: 88, color: AphColors.primary),
+        ),
+        const Gap(AphSpace.lg),
+        Text(
+          name.isEmpty
+              ? tr('Practise together with a helper', 'உதவியாளருடன் சேர்ந்து பயிற்சி செய்யுங்கள்')
+              : tr('Practise together with $name', '$name உடன் சேர்ந்து பயிற்சி செய்யுங்கள்'),
+          style: t.headlineMedium,
+          textAlign: TextAlign.center,
+        ),
+        const Gap(AphSpace.sm),
+        Text(
+          tr('Helper: say it together first if needed, then give time to try alone. '
+                  'No rush — pauses are fine.',
+              'உதவியாளர்: தேவைப்பட்டால் முதலில் சேர்ந்து சொல்லுங்கள், பிறகு தனியாகச் சொல்ல நேரம் கொடுங்கள். '
+                  'அவசரம் வேண்டாம் — இடைவெளி பரவாயில்லை.'),
+          style: t.bodyLarge,
+          textAlign: TextAlign.center,
+        ),
+        const Gap(AphSpace.xs),
+        Text(
+          tr('${_items.length} items · about $minutes minutes',
+              '${_items.length} கேள்விகள் · சுமார் $minutes நிமிடம்'),
+          style: t.bodyMedium,
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
   Widget _buildPrompt(BuildContext context) {
     final t = Theme.of(context).textTheme;
     final item = _item;
-    final instruction = item.hideTarget
-        ? tr('What is this? Say its name.', 'இது என்ன? அதன் பெயரைச் சொல்லுங்கள்.')
-        : tr('Listen, then say:', 'கேட்டு, பிறகு சொல்லுங்கள்:');
+    final instruction = item.instruction ??
+        (item.hideTarget
+            ? tr('What is this? Say its name.', 'இது என்ன? அதன் பெயரைச் சொல்லுங்கள்.')
+            : tr('Listen, then say:', 'கேட்டு, பிறகு சொல்லுங்கள்:'));
     final r = _current;
     final answered = r != null;
-    final kid = _assisted; // parent mode: big picture, few words
+    final kid = _assisted && _child; // parent mode: big picture, few words
     final family = _hasFamily(item);
+    // The blank sentence is read with the instruction ("Finish the
+    // sentence: I drink a cup of …").
+    final spokenPrompt = item.hideTarget && item.prompt != null
+        ? ' ${item.prompt!.replaceAll('___', '…')}'
+        : '';
 
     return AphScaffold(
-      title: widget.kind.title,
+      title: _title,
       leading: IconButton(
         tooltip: tr('Close', 'மூடு'),
         icon: const Icon(Icons.close_rounded),
@@ -533,7 +621,7 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
               ),
             ),
           ),
-        Center(child: StarCounter(stars: _stars)),
+        if (_child) Center(child: StarCounter(stars: _stars)),
       ],
       bottom: answered
           ? Row(
@@ -585,8 +673,8 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
             ReadAloudButton(
               key: ValueKey('ra_${item.id}_$_cue'),
               text: _wordVisible && !family
-                  ? '$instruction ${item.target}'
-                  : instruction,
+                  ? '$instruction$spokenPrompt ${item.target}'
+                  : '$instruction$spokenPrompt',
               language: item.locale,
               compact: true,
               // Family voice plays the word itself (see _onItemShown).
@@ -602,6 +690,7 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
           onPlay: _playModel,
           familyVoice: family,
           big: kid,
+          child: _child,
         ),
         if (item.hideTarget && !answered && _cue < 3) ...[
           const Gap(AphSpace.sm),
@@ -691,7 +780,7 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
             newStar: _newStar,
           )
         else ...[
-          if (_newStar) ...[
+          if (_newStar && _child) ...[
             Center(child: StarBurst(key: ValueKey('burst_${identityHashCode(r)}'), size: 96)),
             const Gap(AphSpace.sm),
           ],
@@ -706,6 +795,7 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
     final avg = _average;
     final band = ScoreBand.of(avg);
     final focus = PracticeCatalog.focusFor(avg);
+    final level = StartLevel.fromLegacyFocus(focus) ?? 2;
     final tricky = _trickyAll.take(3).toList();
     final hintsAvg = HintStats.average(_hintsUsed.values);
 
@@ -723,7 +813,7 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
       ),
       children: [
         const Gap(AphSpace.md),
-        if (_assisted)
+        if (_assisted && _child)
           StarsEarned(stars: _stars)
         else ...[
           Center(child: ScoreRing(score: avg, size: 160)),
@@ -733,24 +823,31 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
             textAlign: TextAlign.center,
             style: t.headlineMedium?.copyWith(color: band.color),
           ),
-          const Gap(AphSpace.xs),
-          Text(
-            _stars == 1
-                ? tr('⭐ 1 star earned', '⭐ 1 நட்சத்திரம் கிடைத்தது')
-                : tr('⭐ $_stars stars earned', '⭐ $_stars நட்சத்திரங்கள் கிடைத்தன'),
-            key: const ValueKey('summary_stars'),
-            textAlign: TextAlign.center,
-            style: t.titleMedium?.copyWith(color: AphColors.accent),
-          ),
+          if (_child) ...[
+            const Gap(AphSpace.xs),
+            Text(
+              _stars == 1
+                  ? tr('⭐ 1 star earned', '⭐ 1 நட்சத்திரம் கிடைத்தது')
+                  : tr('⭐ $_stars stars earned', '⭐ $_stars நட்சத்திரங்கள் கிடைத்தன'),
+              key: const ValueKey('summary_stars'),
+              textAlign: TextAlign.center,
+              style: t.titleMedium?.copyWith(color: AphColors.accent),
+            ),
+          ],
         ],
         const Gap(AphSpace.xs),
         Text(
           _best.isEmpty
               ? tr('No answers this time — that’s okay.', 'இந்த முறை பதில்கள் இல்லை — பரவாயில்லை.')
-              : tr(
-                  '${_best.length} of ${_items.length} answered. Every try counts — well done for practising together!',
-                  '${_items.length} இல் ${_best.length} பதில்கள். ஒவ்வொரு முயற்சியும் முக்கியம் — சேர்ந்து பயிற்சி செய்ததற்கு பாராட்டுகள்!',
-                ),
+              : _child
+                  ? tr(
+                      '${_best.length} of ${_items.length} answered. Every try counts — well done for practising together!',
+                      '${_items.length} இல் ${_best.length} பதில்கள். ஒவ்வொரு முயற்சியும் முக்கியம் — சேர்ந்து பயிற்சி செய்ததற்கு பாராட்டுகள்!',
+                    )
+                  : tr(
+                      '${_best.length} of ${_items.length} answered. Well done — a little practice every day helps.',
+                      '${_items.length} இல் ${_best.length} பதில்கள். நன்றாகச் செய்தீர்கள் — தினமும் கொஞ்சம் பயிற்சி உதவும்.',
+                    ),
           textAlign: TextAlign.center,
           style: t.bodyLarge,
         ),
@@ -769,20 +866,12 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
           FeedbackBanner(
             tone: FeedbackTone.info,
             title: tr('Recommended start', 'பரிந்துரைக்கப்பட்ட தொடக்கம்'),
-            message: switch (focus) {
-              'letters' => tr(
-                  'Begin with letter sounds to build a strong base.',
-                  'வலுவான அடித்தளத்திற்கு எழுத்து ஒலிகளுடன் தொடங்குங்கள்.'),
-              'words' => tr(
-                  'Your child is ready for single words with pictures.',
-                  'படங்களுடன் தனிச் சொற்களுக்கு உங்கள் குழந்தை தயார்.'),
-              _ => tr(
-                  'Your child is ready for short everyday sentences.',
-                  'சிறு அன்றாட வாக்கியங்களுக்கு உங்கள் குழந்தை தயார்.'),
-            },
+            message: _pack.checkUpAdvice(level),
           ),
         ],
-        if (tricky.isNotEmpty && widget.kind != PracticeKind.drill) ...[
+        if (tricky.isNotEmpty &&
+            widget.kind != PracticeKind.drill &&
+            _pack.offersSoundDrill) ...[
           const Gap(AphSpace.lg),
           ActionTile(
             icon: Icons.track_changes_rounded,
@@ -795,6 +884,7 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
                 builder: (_) => PracticeSessionPage(
                   kind: PracticeKind.drill,
                   items: PracticeCatalog.drill(tricky),
+                  pack: widget.pack,
                 ),
               ),
             ),
@@ -859,6 +949,7 @@ class _PromptCard extends StatelessWidget {
     required this.onPlay,
     this.familyVoice = false,
     this.big = false,
+    this.child = true,
   });
 
   final PracticeItem item;
@@ -871,6 +962,9 @@ class _PromptCard extends StatelessWidget {
 
   /// Parent mode: bigger picture and word, no gloss.
   final bool big;
+
+  /// Children's wording ("Amma/Appa's voice").
+  final bool child;
 
   @override
   Widget build(BuildContext context) {
@@ -904,6 +998,34 @@ class _PromptCard extends StatelessWidget {
               ),
             ),
             const Gap(AphSpace.md),
+          ],
+          if (item.icon != null && item.imagePath == null) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AphRadius.md),
+              child: Container(
+                color: AphColors.surfaceSunken,
+                height: 200,
+                width: double.infinity,
+                alignment: Alignment.center,
+                child: Icon(
+                  item.icon,
+                  size: 132,
+                  color: AphColors.inkMuted,
+                  semanticLabel: wordVisible
+                      ? 'Picture of ${item.meaning ?? item.target}'
+                      : 'Picture to name',
+                ),
+              ),
+            ),
+            const Gap(AphSpace.md),
+          ],
+          if (item.prompt != null) ...[
+            Text(
+              item.prompt!,
+              textAlign: TextAlign.center,
+              style: t.headlineSmall?.copyWith(color: AphColors.ink),
+            ),
+            const Gap(AphSpace.sm),
           ],
           if (item.emoji != null) ...[
             ClipRRect(
@@ -970,7 +1092,9 @@ class _PromptCard extends StatelessWidget {
             const Gap(AphSpace.xs),
             AphButton.secondary(
               key: const ValueKey('play_family_voice'),
-              label: tr('Amma/Appa’s voice', 'அம்மா/அப்பா குரல்'),
+              label: child
+                  ? tr('Amma/Appa’s voice', 'அம்மா/அப்பா குரல்')
+                  : tr('Family voice', 'குடும்பக் குரல்'),
               icon: Icons.record_voice_over_rounded,
               onPressed: onPlay,
             ),

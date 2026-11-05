@@ -91,6 +91,7 @@ void main() {
         reason: 'slurred speech → assessment referral');
     await tester.scrollUntilVisible(find.textContaining('not a diagnosis'), 300,
         scrollable: find.byType(Scrollable).first);
-    expect(find.text('Your exercises are being prepared'), findsOneWidget);
+    expect(find.text('Your exercises are being prepared'), findsNothing,
+        reason: 'the aphasia pack has its own exercises now');
   });
 }

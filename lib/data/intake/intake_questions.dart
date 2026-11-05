@@ -648,4 +648,10 @@ abstract final class StartLevel {
     L('Level 3 · short sentences', 'நிலை 3 · சிறு வாக்கியங்கள்'),
   ];
   static L label(int level) => labels[(level - 1).clamp(0, 2)];
+
+  /// `recommendedFocus` → level, or null when unset/unknown.
+  static int? fromLegacyFocus(String? focus) {
+    final i = legacyFocus.indexOf(focus ?? '');
+    return i < 0 ? null : i + 1;
+  }
 }
