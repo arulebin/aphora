@@ -257,8 +257,20 @@ void main() {
     await d.idle(1500);
     await d.shot('care_booked');
 
+    // Jitsi join screen: the private room is created (or read back) on the
+    // patient doc, then the button enables. We stop short of tapping it, so
+    // the native Jitsi activity never launches during the run.
     await d.tapText('Video call');
-    await d.idle(1500);
+    await d.wait(find.text('Calls use Jitsi Meet, an open-source video service'),
+        why: 'Jitsi join screen', seconds: 20);
+    await d.wait(
+        find.byWidgetPredicate((w) =>
+            w is AphButton &&
+            w.label == 'Join video call' &&
+            w.onPressed != null &&
+            !w.loading),
+        why: 'room ready: Join video call enabled',
+        seconds: 20);
     await d.shot('video_call');
     await d.backOut();
 
