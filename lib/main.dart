@@ -1,5 +1,6 @@
 import 'package:aphora/firebase_options.dart';
 import 'package:aphora/logic/comfort_settings.dart';
+import 'package:aphora/logic/family_voice_store.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/ui/auth/language_selection_page.dart';
 import 'package:aphora/ui/auth/login_page.dart';
@@ -32,6 +33,8 @@ Future<void> main() async {
         .useFirestoreEmulator('127.0.0.1', 8080, automaticHostMapping: false);
   }
   await ComfortSettings.instance.load();
+  // Family Voice recordings live on the device; read which exist.
+  await FamilyVoiceStore.instance.load();
   Locator.setUpServices();
 
   final restored = await Locator.userDatabaseService.restoreSession();
