@@ -149,8 +149,9 @@ class _PatientDetailPageState extends State<PatientDetailPage> {
                         context,
                         MaterialPageRoute(
                           builder: (_) => VideoCallPage(
-                            channelName:
-                                'aphora_${widget.therapistCode}_${p.uid}',
+                            patientUid: p.uid,
+                            therapistCode: widget.therapistCode,
+                            displayName: 'Therapist',
                             peerName: p.name,
                           ),
                         ),

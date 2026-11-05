@@ -3,6 +3,7 @@ import 'package:aphora/data/models/therapist_model.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
+import 'package:aphora/logic/video_room.dart';
 import 'package:aphora/ui/design/components.dart';
 import 'package:aphora/ui/video_call/videocall_page.dart';
 import 'package:flutter/material.dart';
@@ -255,7 +256,10 @@ class _CareTeamPageState extends State<CareTeamPage> {
                       context,
                       MaterialPageRoute(
                         builder: (_) => VideoCallPage(
-                          channelName: 'aphora_${th.code}_${user.uid}',
+                          patientUid: user.uid,
+                          therapistCode: th.code,
+                          displayName: VideoRoom.firstName(user.name,
+                              fallback: tr('Family', 'குடும்பம்')),
                           peerName: th.name,
                         ),
                       ),

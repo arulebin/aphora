@@ -19,6 +19,17 @@ service cloud.firestore {
              (!('therapistLevel' in d) || d.therapistLevel == null ||
               (d.therapistLevel is int && d.therapistLevel >= 1 && d.therapistLevel <= 3));
     }
+    // Private video room (see lib/logic/video_room.dart): a therapist may
+    // create the pair's room on the patient doc only for their own code,
+    // only in the `vernacura-` + 32 hex form, and never overwrite a room
+    // that already belongs to them.
+    function validVideoRoom(before, after) {
+      return !after.diff(before).affectedKeys().hasAny(['videoRoom', 'videoRoomFor']) ||
+        (after.get('videoRoomFor', '') == myCode() &&
+         after.get('videoRoom', '') is string &&
+         after.get('videoRoom', '').matches('vernacura-[0-9a-f]{32}') &&
+         before.get('videoRoomFor', '') != myCode());
+    }
     // The patient doc's linkedCaregiverId holds the therapist's share code.
     function linkedTo(patientUid) {
       return isTherapist() &&
@@ -29,12 +40,15 @@ service cloud.firestore {
       allow read: if signedIn() && (request.auth.uid == uid ||
                      (isTherapist() && resource.data.linkedCaregiverId == myCode()));
       allow create, update, delete: if signedIn() && request.auth.uid == uid;
-      // A linked therapist may only change the note and the practice plan
-      // (pack + level, which the app prefers over the intake result).
+      // A linked therapist may only change the note, the practice plan
+      // (pack + level, which the app prefers over the intake result) and,
+      // once, the pair's private video room.
       allow update: if linkedTo(uid) &&
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['therapistNote', 'therapistCondition', 'therapistLevel']) &&
-        validTherapistPlan(request.resource.data);
+          .hasOnly(['therapistNote', 'therapistCondition', 'therapistLevel',
+                    'videoRoom', 'videoRoomFor']) &&
+        validTherapistPlan(request.resource.data) &&
+        validVideoRoom(resource.data, request.resource.data);
 
       match /attempts/{id} {
         allow read: if signedIn() && (request.auth.uid == uid || linkedTo(uid));

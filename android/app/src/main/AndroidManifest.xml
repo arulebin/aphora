@@ -1,23 +1,21 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Permissions required by the app -->
     <!-- Internet for Firebase and TTS -->
     <uses-permission android:name="android.permission.INTERNET" />
     
-    <!-- Microphone for speech recognition and video calls -->
+    <!-- Microphone for speech recognition and video calls (Jitsi) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     
-    <!-- Camera for video calls (Agora) -->
+    <!-- Camera for video calls (Jitsi) -->
     <uses-permission android:name="android.permission.CAMERA" />
     
     <!-- Network state for connectivity checks -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
-    <!-- Bluetooth for audio routing in video calls -->
-    <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    
     <application
         android:label="Vernacura"
+        tools:replace="android:label"
         android:name="${applicationName}"
         android:networkSecurityConfig="@xml/network_security_config"
         android:icon="@mipmap/ic_launcher">

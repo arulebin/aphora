@@ -6,6 +6,7 @@ import 'package:aphora/logic/intake_engine.dart';
 import 'package:aphora/data/models/therapist_model.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/comfort_settings.dart';
+import 'package:aphora/logic/video_room.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -204,7 +205,12 @@ class UserDatabaseService {
     await _db
         .collection(userCollection)
         .doc(user.uid)
-        .update({'linkedCaregiverId': ''});
+        .update({
+      'linkedCaregiverId': '',
+      // The old therapist knew this room; a new link gets a new one.
+      'videoRoom': FieldValue.delete(),
+      'videoRoomFor': FieldValue.delete(),
+    });
     final updated = user.copyWith(updatedAt: DateTime.now());
     updated.linkedCaregiverId = '';
     currentUser.value = updated;
@@ -548,6 +554,31 @@ class UserDatabaseService {
     await _db.collection(userCollection).doc(patientUid).update({
       'therapistCondition': condition?.id,
       'therapistLevel': level,
+    });
+  }
+
+  /// The private Jitsi room for [patientUid] and the therapist with
+  /// [therapistCode]. Created once by whichever side calls first, in a
+  /// transaction so both sides always agree, and stored on the patient doc
+  /// as `videoRoom` + `videoRoomFor`. A room made for another therapist
+  /// code is replaced. Either the patient or the linked therapist may call
+  /// this (see firestore.rules).
+  Future<String> ensureVideoRoom({
+    required String patientUid,
+    required String therapistCode,
+  }) {
+    final ref = _db.collection(userCollection).doc(patientUid);
+    return _db.runTransaction((tx) async {
+      final data = (await tx.get(ref)).data() ?? const <String, dynamic>{};
+      final existing = data['videoRoom'];
+      if (data['videoRoomFor'] == therapistCode &&
+          existing is String &&
+          VideoRoom.isValid(existing)) {
+        return existing;
+      }
+      final room = VideoRoom.newName();
+      tx.update(ref, {'videoRoom': room, 'videoRoomFor': therapistCode});
+      return room;
     });
   }
 

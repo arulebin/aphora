@@ -1,264 +1,216 @@
-import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:aphora/logic/language_service.dart';
+import 'package:aphora/logic/locator.dart';
+import 'package:aphora/logic/video_room.dart';
 import 'package:aphora/ui/design/components.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:jitsi_meet_flutter_sdk/jitsi_meet_flutter_sdk.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-/// Private patient↔therapist video room.
+/// Private therapist ↔ family video room, on Jitsi Meet (open source).
 ///
-/// Fixes from the old page: every call used one shared "demo_channel";
-/// the Agora App ID was hard-coded; permission denials were ignored; the
-/// engine leaked if you left early; and there were no call controls.
+/// The page is a join screen: it looks up (or creates, once) the pair's
+/// unguessable room — see [VideoRoom] — and "Join video call" opens it.
+/// On Android/iOS that launches the native Jitsi Meet SDK screen; on web,
+/// where the SDK doesn't run, it opens the same room in a new browser tab.
 ///
-/// Configure with `--dart-define=AGORA_APP_ID=...` (and AGORA_TOKEN for
-/// projects with certificates enabled).
+/// Server: `--dart-define=JITSI_SERVER_URL=...` (docs/video-calls.md).
 class VideoCallPage extends StatefulWidget {
   const VideoCallPage({
     super.key,
-    required this.channelName,
+    required this.patientUid,
+    required this.therapistCode,
+    required this.displayName,
     this.peerName = 'your therapist',
+    this.loadRoom,
   });
 
-  final String channelName;
+  /// The pair whose room to open.
+  final String patientUid;
+  final String therapistCode;
+
+  /// Shown to the other side: the family's first name, or "Therapist".
+  final String displayName;
   final String peerName;
+
+  /// Test seam; defaults to `UserDatabaseService.ensureVideoRoom`.
+  final Future<String> Function()? loadRoom;
 
   @override
   State<VideoCallPage> createState() => _VideoCallPageState();
 }
 
 class _VideoCallPageState extends State<VideoCallPage> {
-  static const _appId = String.fromEnvironment('AGORA_APP_ID');
-  static const _token = String.fromEnvironment('AGORA_TOKEN');
-
-  RtcEngine? _engine;
-  int? _remoteUid;
-  bool _joined = false;
-  bool _muted = false;
-  bool _cameraOff = false;
+  late Future<String> _room;
+  bool _joining = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _start();
+    _room = _load();
   }
 
-  Future<void> _start() async {
-    if (kIsWeb) {
-      setState(() => _error =
-          'Video calls work in the Android and iOS app. Please open Vernacura on your phone.');
-      return;
-    }
-    if (_appId.isEmpty) {
-      setState(() => _error =
-          'Video calling is not set up in this build yet. Ask the Vernacura team to add the video key.');
-      return;
-    }
-    final perms = await [Permission.camera, Permission.microphone].request();
-    if (perms.values.any((s) => !s.isGranted)) {
-      if (mounted) {
-        setState(() => _error =
-            'Vernacura needs camera and microphone permission for video calls. '
-            'Please allow both in your phone settings.');
-      }
-      return;
-    }
+  Future<String> _load() =>
+      (widget.loadRoom ??
+          () => Locator.userDatabaseService.ensureVideoRoom(
+                patientUid: widget.patientUid,
+                therapistCode: widget.therapistCode,
+              ))();
+
+  Future<void> _join(String room) async {
+    setState(() {
+      _joining = true;
+      _error = null;
+    });
     try {
-      final engine = createAgoraRtcEngine();
-      _engine = engine;
-      await engine.initialize(const RtcEngineContext(appId: _appId));
-      engine.registerEventHandler(RtcEngineEventHandler(
-        onJoinChannelSuccess: (_, _) {
-          if (mounted) setState(() => _joined = true);
-        },
-        onUserJoined: (_, uid, _) {
-          if (mounted) setState(() => _remoteUid = uid);
-        },
-        onUserOffline: (_, _, _) {
-          if (mounted) setState(() => _remoteUid = null);
-        },
-        onError: (err, msg) {
-          if (mounted) setState(() => _error = 'Call error: $msg');
-        },
-      ));
-      await engine.enableVideo();
-      await engine.startPreview();
-      await engine.joinChannel(
-        token: _token,
-        channelId: widget.channelName,
-        uid: 0,
-        options: const ChannelMediaOptions(),
-      );
+      if (kIsWeb) {
+        final ok = await launchUrl(
+          VideoRoom.meetingUri(room, displayName: widget.displayName),
+          webOnlyWindowName: '_blank',
+        );
+        if (!ok) {
+          _fail(tr('Could not open the call. Please allow pop-ups and try again.',
+              'அழைப்பைத் திறக்க முடியவில்லை. பாப்-அப்களை அனுமதித்து மீண்டும் முயலுங்கள்.'));
+        }
+        return;
+      }
+      final perms = await [Permission.camera, Permission.microphone].request();
+      if (perms.values.any((s) => !s.isGranted)) {
+        _fail(tr(
+            'Vernacura needs camera and microphone permission for video calls. '
+                'Please allow both in your phone settings.',
+            'வீடியோ அழைப்புக்கு கேமரா, மைக்ரோஃபோன் அனுமதி தேவை. '
+                'தொலைபேசி அமைப்புகளில் இரண்டையும் அனுமதியுங்கள்.'));
+        return;
+      }
+      await JitsiMeet().join(_options(room));
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not start the call. ($e)');
+      debugPrint('Jitsi join failed: $e');
+      _fail(tr('Could not start the call. Please try again.',
+          'அழைப்பைத் தொடங்க முடியவில்லை. மீண்டும் முயலுங்கள்.'));
+    } finally {
+      if (mounted) setState(() => _joining = false);
     }
   }
 
-  @override
-  void dispose() {
-    final e = _engine;
-    if (e != null) {
-      e.leaveChannel().whenComplete(e.release);
-    }
-    super.dispose();
+  void _fail(String message) {
+    if (mounted) setState(() => _error = message);
   }
+
+  JitsiMeetConferenceOptions _options(String room) => JitsiMeetConferenceOptions(
+        serverURL: VideoRoom.serverUrl,
+        room: room,
+        configOverrides: {
+          'startWithAudioMuted': false,
+          'startWithVideoMuted': false,
+          'prejoinConfig.enabled': false,
+          'prejoinPageEnabled': false,
+          'disableDeepLinking': true,
+          'subject': tr('Vernacura session', 'Vernacura அமர்வு'),
+        },
+        featureFlags: {
+          FeatureFlags.preJoinPageEnabled: false,
+          FeatureFlags.welcomePageEnabled: false,
+          FeatureFlags.unsafeRoomWarningEnabled: false,
+          FeatureFlags.recordingEnabled: false,
+          FeatureFlags.iosRecordingEnabled: false,
+          FeatureFlags.liveStreamingEnabled: false,
+          FeatureFlags.chatEnabled: false,
+          FeatureFlags.inviteEnabled: false,
+          FeatureFlags.addPeopleEnabled: false,
+          FeatureFlags.calenderEnabled: false,
+          FeatureFlags.callIntegrationEnabled: false,
+          FeatureFlags.videoShareEnabled: false,
+          FeatureFlags.breakoutRoomsEnabled: false,
+          FeatureFlags.carModeEnabled: false,
+          FeatureFlags.helpButtonEnabled: false,
+        },
+        userInfo: JitsiMeetUserInfo(displayName: widget.displayName),
+      );
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
-    if (_error != null) {
-      return AphScaffold(
-        title: 'Video call',
-        children: [
-          EmptyState(
-            icon: Icons.videocam_off_rounded,
-            title: 'Video call unavailable',
-            message: _error,
-            action: AphButton.secondary(
-              label: 'Go back',
-              expand: false,
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ],
-      );
-    }
-    final engine = _engine;
-    return Scaffold(
-      backgroundColor: const Color(0xFF0E1A1F),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: engine != null && _remoteUid != null
-                  ? AgoraVideoView(
-                      controller: VideoViewController.remote(
-                        rtcEngine: engine,
-                        canvas: VideoCanvas(uid: _remoteUid),
-                        connection: RtcConnection(channelId: widget.channelName),
+    return AphScaffold(
+      title: tr('Video call', 'வீடியோ அழைப்பு'),
+      children: [
+        FutureBuilder<String>(
+          future: _room,
+          builder: (context, snap) {
+            if (snap.hasError) {
+              return ErrorState(
+                title: tr('Could not set up the call', 'அழைப்பை அமைக்க முடியவில்லை'),
+                message: tr('Please check your internet connection and try again.',
+                    'இணைய இணைப்பைச் சரிபார்த்து மீண்டும் முயலுங்கள்.'),
+                onRetry: () => setState(() => _room = _load()),
+              );
+            }
+            final room = snap.data;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AphCard(
+                  child: Column(
+                    children: [
+                      const CircleAvatar(
+                        radius: 36,
+                        backgroundColor: AphColors.primarySoft,
+                        child: Icon(Icons.videocam_rounded,
+                            size: 36, color: AphColors.primary),
                       ),
-                    )
-                  : Center(
-                      child: Semantics(
-                        liveRegion: true,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const CircularProgressIndicator(color: Colors.white),
-                            const Gap(AphSpace.md),
-                            Text(
-                              _joined
-                                  ? 'Waiting for ${widget.peerName} to join…'
-                                  : 'Connecting…',
-                              style: t.titleMedium?.copyWith(color: Colors.white),
-                            ),
-                          ],
+                      const Gap(AphSpace.md),
+                      Text(
+                        tr('Video call with ${widget.peerName}',
+                            '${widget.peerName} உடன் வீடியோ அழைப்பு'),
+                        style: t.titleLarge,
+                        textAlign: TextAlign.center,
+                      ),
+                      const Gap(AphSpace.xs),
+                      Text(
+                        tr('This room is private to you and ${widget.peerName}.',
+                            'இந்த அறை உங்களுக்கும் ${widget.peerName} க்கும் மட்டுமே.'),
+                        style: t.bodyMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                      const Gap(AphSpace.lg),
+                      AphButton(
+                        label: tr('Join video call', 'வீடியோ அழைப்பில் சேர்'),
+                        icon: Icons.videocam_rounded,
+                        loading: room == null || _joining,
+                        onPressed: room == null ? null : () => _join(room),
+                      ),
+                      if (kIsWeb) ...[
+                        const Gap(AphSpace.sm),
+                        Text(
+                          tr('The call opens in a new browser tab.',
+                              'அழைப்பு புதிய உலாவி தாவலில் திறக்கும்.'),
+                          style: t.bodySmall,
+                          textAlign: TextAlign.center,
                         ),
-                      ),
-                    ),
-            ),
-            if (engine != null && !_cameraOff)
-              Positioned(
-                top: AphSpace.md,
-                right: AphSpace.md,
-                width: 110,
-                height: 150,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(AphRadius.md),
-                  child: AgoraVideoView(
-                    controller: VideoViewController(
-                      rtcEngine: engine,
-                      canvas: const VideoCanvas(uid: 0),
-                    ),
+                      ],
+                    ],
                   ),
                 ),
-              ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: AphSpace.lg,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _CallButton(
-                    icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                    label: _muted ? 'Unmute' : 'Mute',
-                    onTap: () {
-                      setState(() => _muted = !_muted);
-                      engine?.muteLocalAudioStream(_muted);
-                    },
-                  ),
-                  _CallButton(
-                    icon: Icons.call_end_rounded,
-                    label: 'End call',
-                    color: AphColors.danger,
-                    onTap: () => Navigator.pop(context),
-                  ),
-                  _CallButton(
-                    icon: _cameraOff
-                        ? Icons.videocam_off_rounded
-                        : Icons.videocam_rounded,
-                    label: _cameraOff ? 'Camera on' : 'Camera off',
-                    onTap: () {
-                      setState(() => _cameraOff = !_cameraOff);
-                      engine?.muteLocalVideoStream(_cameraOff);
-                    },
-                  ),
+                if (_error != null) ...[
+                  const Gap(AphSpace.md),
+                  FeedbackBanner(tone: FeedbackTone.error, title: _error!),
                 ],
-              ),
-            ),
-          ],
+                const Gap(AphSpace.md),
+                FeedbackBanner(
+                  tone: FeedbackTone.info,
+                  title: tr('Calls use Jitsi Meet, an open-source video service',
+                      'அழைப்புகள் Jitsi Meet எனும் திறந்த மூல வீடியோ சேவையைப் பயன்படுத்துகின்றன'),
+                  message: tr(
+                      'Server: ${VideoRoom.serverHost}. Recording is turned off.',
+                      'சேவையகம்: ${VideoRoom.serverHost}. பதிவு செய்தல் அணைக்கப்பட்டுள்ளது.'),
+                ),
+              ],
+            );
+          },
         ),
-      ),
-    );
-  }
-}
-
-class _CallButton extends StatelessWidget {
-  const _CallButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.color = const Color(0x33FFFFFF),
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: label,
-      excludeSemantics: true,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Material(
-            color: color,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: onTap,
-              child: SizedBox(
-                width: 68,
-                height: 68,
-                child: Icon(icon, color: Colors.white, size: 32),
-              ),
-            ),
-          ),
-          const Gap(AphSpace.xs),
-          Text(
-            label,
-            style: Theme.of(context)
-                .textTheme
-                .labelMedium
-                ?.copyWith(color: Colors.white),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }
