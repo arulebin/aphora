@@ -69,26 +69,34 @@ abstract final class OralRehabPack {
 
   // ── Kinds ────────────────────────────────────────────────────────────
 
-  /// Which existing [PracticeKind] runs each content group.
+  /// Which [PracticeKind] runs each content group.
   static PracticeKind practiceKindFor(OralItemKind kind) => switch (kind) {
         OralItemKind.syllables => PracticeKind.letters,
         OralItemKind.words => PracticeKind.words,
         OralItemKind.minimalPairs => PracticeKind.drill,
-        OralItemKind.phrases => PracticeKind.sentences,
-        OralItemKind.clearSpeech => PracticeKind.phonetic,
+        OralItemKind.phrases => PracticeKind.functional,
+        OralItemKind.clearSpeech => PracticeKind.clearSpeech,
         OralItemKind.intelligibility => PracticeKind.assessment,
       };
 
-  /// Reverse of [practiceKindFor]; null for kinds this pack does not use
-  /// (`naming` — word-finding is not the problem after oral surgery).
+  /// Reverse of [practiceKindFor]; null for kinds this pack does not use:
+  /// naming and the aphasia language tasks (word-finding is not the
+  /// problem after oral surgery) and `phonetic` ("Copy the voice" scores
+  /// against a healthy voice; this pack compares only with the person's
+  /// own starting point). `sentences` is accepted as an alias of phrases.
   static OralItemKind? oralKindFor(PracticeKind kind) => switch (kind) {
         PracticeKind.letters => OralItemKind.syllables,
         PracticeKind.words => OralItemKind.words,
         PracticeKind.drill => OralItemKind.minimalPairs,
-        PracticeKind.sentences => OralItemKind.phrases,
-        PracticeKind.phonetic => OralItemKind.clearSpeech,
+        PracticeKind.functional || PracticeKind.sentences => OralItemKind.phrases,
+        PracticeKind.clearSpeech => OralItemKind.clearSpeech,
         PracticeKind.assessment => OralItemKind.intelligibility,
-        PracticeKind.naming => null,
+        PracticeKind.naming ||
+        PracticeKind.phonetic ||
+        PracticeKind.automatic ||
+        PracticeKind.repetition ||
+        PracticeKind.completion =>
+          null,
       };
 
   /// The PracticeKinds this pack offers, in the order to show them.
@@ -96,8 +104,8 @@ abstract final class OralRehabPack {
     PracticeKind.letters,
     PracticeKind.words,
     PracticeKind.drill,
-    PracticeKind.sentences,
-    PracticeKind.phonetic,
+    PracticeKind.functional,
+    PracticeKind.clearSpeech,
     PracticeKind.assessment,
   ];
 

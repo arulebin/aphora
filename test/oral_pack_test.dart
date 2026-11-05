@@ -195,7 +195,7 @@ void main() {
       expect(water.alternates, contains('தண்ணி'));
       expect(water.meaning, 'water');
 
-      final en = OralRehabPack.itemsFor(PracticeKind.phonetic, 1, Language.english);
+      final en = OralRehabPack.itemsFor(PracticeKind.clearSpeech, 1, Language.english);
       expect(en.first.locale, 'en-IN');
       expect(en.first.semanticCue, OralRehabPack.pacingCue.en);
       expect(OralRehabPack.itemsFor(PracticeKind.words, 1, Language.english).every((p) => p.locale == 'en-IN'),

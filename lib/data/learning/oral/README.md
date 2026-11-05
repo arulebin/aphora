@@ -17,8 +17,8 @@ tongue cancer). No UI here; the catalog / session pages consume it as below.
 | `syllables` | `letters` | L1 sound+vowel (தா, "tea"), L2 vowel ladder (தா தி து), L3 alternating places (பா தா கா) |
 | `words` | `words` | target sound at word start / middle; L1 short → L3 long / two-word |
 | `minimalPairs` | `drill` | L1–2 two words (`item.pair`), L3 clarifying sentence ("I said cat, not pat") |
-| `phrases` | `sentences` | needs, health, safety, family, personal templates, shop, bus, phone |
-| `clearSpeech` | `phonetic` | phrase said one word at a time (`item.pacing == true`) |
+| `phrases` | `functional` (`sentences` also accepted) | needs, health, safety, family, personal templates, shop, bus, phone |
+| `clearSpeech` | `clearSpeech` | phrase said one word at a time (`item.pacing == true`) |
 | `intelligibility` | `assessment` | fixed 20-item monthly re-test |
 | — | `naming` | not used (word-finding is not the problem) → `itemsFor` returns `[]` |
 
