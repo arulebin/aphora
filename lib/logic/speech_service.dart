@@ -3,9 +3,28 @@ import 'dart:async';
 import 'package:aphora/logic/comfort_settings.dart';
 import 'package:aphora/logic/language_service.dart';
 import 'package:characters/characters.dart';
-import 'package:flutter/foundation.dart' show ValueNotifier, debugPrint, kIsWeb;
+import 'package:flutter/foundation.dart'
+    show ValueNotifier, debugPrint, defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+
+/// What the phone can do in one language, from [SpeechService.checkVoiceSupport].
+class VoiceSupport {
+  const VoiceSupport({required this.canSpeak, required this.canListen});
+
+  /// Assumed fine (web, tests, or the check itself failed).
+  static const ok = VoiceSupport(canSpeak: true, canListen: true);
+
+  /// A voice for this language is installed (on Android: an offline voice,
+  /// so words play without internet).
+  final bool canSpeak;
+
+  /// The speech recogniser lists this language.
+  final bool canListen;
+
+  bool get allGood => canSpeak && canListen;
+}
 
 /// Why a listening attempt ended without words.
 enum ListenFailure { none, unavailable, permissionDenied, noSpeech, error }
@@ -129,6 +148,60 @@ class SpeechService {
     try {
       await _tts.stop();
     } catch (_) {}
+  }
+
+  // ── Voice availability ────────────────────────────────────────────────
+
+  static const _system = MethodChannel('vernacura/system');
+
+  /// Checks whether the phone can speak and recognise [locale] (e.g.
+  /// 'ta-IN'). Google's Tamil voice is a separate download on many Android
+  /// phones; without it Tamil words are read in an English voice or not at
+  /// all, which looks like the app is broken.
+  Future<VoiceSupport> checkVoiceSupport(String locale) async {
+    if (kIsWeb || debugListenOverride != null) return VoiceSupport.ok;
+    await _ready;
+    final prefix = locale.split('-').first.toLowerCase();
+    var canSpeak = true;
+    try {
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        canSpeak = await _tts.isLanguageInstalled(locale) == true;
+      } else {
+        final voices = await _tts.getVoices;
+        canSpeak = voices is List &&
+            voices.any((v) =>
+                v is Map && '${v['locale']}'.toLowerCase().startsWith(prefix));
+      }
+    } catch (e) {
+      debugPrint('Voice check (speak) failed: $e');
+    }
+    var canListen = true;
+    try {
+      if (_sttAvailable) {
+        _locales ??= await _stt.locales();
+        if (_locales!.isNotEmpty) {
+          canListen = _locales!.any((l) => l.localeId
+              .toLowerCase()
+              .replaceAll('_', '-')
+              .startsWith(prefix));
+        }
+      }
+    } catch (e) {
+      debugPrint('Voice check (listen) failed: $e');
+    }
+    return VoiceSupport(canSpeak: canSpeak, canListen: canListen);
+  }
+
+  /// Opens the phone's screen for downloading text-to-speech voices
+  /// (Android only). Returns false if no such screen could be opened.
+  Future<bool> openVoiceInstaller() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return false;
+    try {
+      return await _system.invokeMethod<bool>('openTtsInstaller') ?? false;
+    } catch (e) {
+      debugPrint('Open voice installer failed: $e');
+      return false;
+    }
   }
 
   // ── Speech to text ────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/ui/design/components.dart';
+import 'package:aphora/ui/design/voice_check_banner.dart';
 import 'package:aphora/ui/practice/picture_match_page.dart';
 import 'package:aphora/ui/practice/practice_session_page.dart';
 import 'package:flutter/material.dart';
@@ -42,6 +43,7 @@ class PracticeHubPage extends StatelessWidget {
           title: tr('Practice', 'பயிற்சி'),
           showBack: false,
           children: [
+            const VoiceCheckBanner(),
             Text(
               tr('Short, focused exercises. Do a little every day — regular practice matters more than long sessions.',
                   'சிறிய பயிற்சிகள். தினமும் கொஞ்சம் செய்யுங்கள் — நீண்ட அமர்வுகளை விட தொடர்ச்சியே முக்கியம்.'),
