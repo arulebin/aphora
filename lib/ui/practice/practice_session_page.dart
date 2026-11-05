@@ -1,13 +1,17 @@
 import 'dart:async';
 
+import 'package:aphora/data/aphora_api_service.dart' show AphoraApiException;
 import 'package:aphora/data/learning/practice_catalog.dart';
 import 'package:aphora/data/models/practice_record.dart';
 import 'package:aphora/logic/comfort_settings.dart';
+import 'package:aphora/logic/family_voice_store.dart';
 import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
+import 'package:aphora/logic/practice_rewards.dart';
 import 'package:aphora/logic/speech_service.dart';
 import 'package:aphora/logic/voice_recorder.dart';
 import 'package:aphora/ui/design/components.dart';
+import 'package:aphora/ui/practice/kid_rewards.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -76,6 +80,13 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
   final Map<int, _Result> _best = {};
   final Set<String> _trickyAll = {};
 
+  /// Hints (cueing-ladder rungs) used per answered hidden-word item.
+  final Map<int, int> _hintsUsed = {};
+
+  /// The last attempt earned a new star (drives the star burst).
+  bool _newStar = false;
+  final _family = FamilyVoiceStore.instance;
+
   bool _serverAvailable = false;
   Timer? _autoStop;
   bool _saving = false;
@@ -86,14 +97,36 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
   PracticeItem get _item => _items[_index];
   bool get _wordVisible => !_item.hideTarget || _cue >= 3;
 
+  /// Amma/Appa recorded this item in Family Voice.
+  bool _hasFamily(PracticeItem i) => _family.has(i.voiceKey);
+
+  /// A reference recording the server can score against: the parent's
+  /// (in "Copy the voice") or a bundled fluent speaker.
+  bool _hasReference(PracticeItem i) =>
+      i.referenceAudio != null ||
+      (widget.kind == PracticeKind.phonetic && _hasFamily(i));
+
+  int get _stars => PracticeRewards.stars(_best.values.map((r) => r.score));
+
   @override
   void initState() {
     super.initState();
     _checkServer();
+    if (_phase == _Phase.prompt) _onItemShown();
+  }
+
+  /// When the word is on screen and Amma/Appa recorded it, play their
+  /// voice straight away (instead of the phone reading the word).
+  void _onItemShown() {
+    if (!ComfortSettings.instance.autoReadAloud.value) return;
+    if (_item.hideTarget || !_hasFamily(_item)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _playModel();
+    });
   }
 
   Future<void> _checkServer() async {
-    if (!_items.any((i) => i.referenceAudio != null)) return;
+    if (!_items.any(_hasReference)) return;
     final ok = await Locator.aphoraApiService.isReachable() &&
         await _recorder.canRecordWav();
     if (mounted) setState(() => _serverAvailable = ok);
@@ -112,7 +145,7 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
 
   // ── Listening & scoring ──────────────────────────────────────────────
 
-  bool get _useServer => _serverAvailable && _item.referenceAudio != null;
+  bool get _useServer => _serverAvailable && _hasReference(_item);
 
   Future<void> _onMic() async {
     if (_mic == MicState.processing) return;
@@ -173,12 +206,29 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
       return;
     }
     try {
-      final r = await Locator.aphoraApiService.evaluateAgainstAsset(
-        referenceAssetPath: _item.referenceAudio!,
-        userAudioBytes: bytes,
-        referenceText: _item.target,
-        language: _item.locale.split('-').first,
-      );
+      final item = _item;
+      final api = Locator.aphoraApiService;
+      // Parent's own recording first (Family Voice), else the bundled one.
+      final family = widget.kind == PracticeKind.phonetic
+          ? await _family.bytesFor(item.voiceKey)
+          : null;
+      final language = item.locale.split('-').first;
+      final r = family != null
+          ? await api.evaluate(
+              referenceBytes: family,
+              referenceFilename: FamilyVoiceStore.fileNameFor(item.voiceKey),
+              userAudioBytes: bytes,
+              referenceText: item.target,
+              language: language,
+            )
+          : item.referenceAudio != null
+              ? await api.evaluateAgainstAsset(
+                  referenceAssetPath: item.referenceAudio!,
+                  userAudioBytes: bytes,
+                  referenceText: item.target,
+                  language: language,
+                )
+              : throw AphoraApiException('No reference recording for this item.');
       _commit(_Result(
         score: r.combinedAccuracy,
         spoken: r.userText ?? '',
@@ -218,11 +268,19 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
   void _commit(_Result r) {
     HapticFeedback.lightImpact();
     final prev = _best[_index];
+    final hints = _item.hideTarget ? _cue : 0;
     setState(() {
       _mic = MicState.idle;
       _current = r;
+      _newStar = PracticeRewards.isCorrect(r.score) &&
+          (prev == null || !PracticeRewards.isCorrect(prev.score));
       if (prev == null || r.score > prev.score) _best[_index] = r;
       _trickyAll.addAll(r.tricky);
+      if (_item.hideTarget) {
+        // Hints only build up within an item, so keep the highest.
+        _hintsUsed.update(_index, (h) => h > hints ? h : hints,
+            ifAbsent: () => hints);
+      }
     });
     // Persist each attempt; failures are non-fatal (offline queue in
     // Firestore will retry).
@@ -235,6 +293,7 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
           spoken: r.spoken,
           method: r.method,
           assisted: _assisted,
+          hintsUsed: hints,
         )
         .catchError((_) => null);
     final band = ScoreBand.of(r.score);
@@ -260,6 +319,15 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
   }
 
   Future<void> _playModel() async {
+    final family = await _family.pathFor(_item.voiceKey);
+    if (family != null) {
+      try {
+        await _speech.stopSpeaking();
+        await _player.stop();
+        await _player.play(DeviceFileSource(family));
+        return;
+      } catch (_) {/* fall through */}
+    }
     final ref = _item.referenceAudio;
     if (ref != null) {
       try {
@@ -286,7 +354,9 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
       _error = null;
       _cue = 0;
       _typing = false;
+      _newStar = false;
     });
+    _onItemShown();
   }
 
   void _skip() {
@@ -383,36 +453,46 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
     );
   }
 
+  /// Parent mode start screen: one short line for the parent.
   Widget _buildHandoff(BuildContext context) {
     final t = Theme.of(context).textTheme;
     final name = Locator.userDatabaseService.currentUser.value?.name ?? '';
     return AphScaffold(
       title: widget.kind.title,
       bottom: AphButton(
+        key: const ValueKey('session_start'),
         label: tr('Start', 'தொடங்கு'),
         icon: Icons.play_arrow_rounded,
-        onPressed: () => setState(() => _phase = _Phase.prompt),
+        onPressed: () {
+          setState(() => _phase = _Phase.prompt);
+          _onItemShown();
+        },
       ),
       children: [
         const Gap(AphSpace.xl),
-        const Icon(Icons.front_hand_rounded,
-            size: 72, color: AphColors.accent),
+        const Center(
+          child: Text('👩‍👧', style: TextStyle(fontSize: 96)),
+        ),
         const Gap(AphSpace.lg),
         Text(
           name.isEmpty
-              ? tr('Hand the phone to the patient', 'தொலைபேசியை நோயாளியிடம் கொடுங்கள்')
-              : tr('Hand the phone to $name', 'தொலைபேசியை $name இடம் கொடுங்கள்'),
+              ? tr('Practise together', 'சேர்ந்து பயிற்சி செய்வோம்')
+              : tr('Practise with $name', '$name உடன் பயிற்சி'),
           style: t.headlineMedium,
           textAlign: TextAlign.center,
         ),
         const Gap(AphSpace.sm),
         Text(
-          tr(
-            'Sit beside them. Let them try first — help only if they ask, or after two tries. '
-                '${_items.length} items, about ${widget.kind.minutes} minutes.',
-            'அருகில் அமருங்கள். முதலில் அவர்களே முயலட்டும் — இரண்டு முயற்சிகளுக்குப் பிறகே உதவுங்கள்.',
-          ),
+          tr('Say it together, then let your child try.',
+              'சேர்ந்து சொல்லுங்கள், பிறகு குழந்தையைச் சொல்ல விடுங்கள்.'),
           style: t.bodyLarge,
+          textAlign: TextAlign.center,
+        ),
+        const Gap(AphSpace.xs),
+        Text(
+          tr('${_items.length} pictures · about ${widget.kind.minutes} minutes',
+              '${_items.length} படங்கள் · சுமார் ${widget.kind.minutes} நிமிடம்'),
+          style: t.bodyMedium,
           textAlign: TextAlign.center,
         ),
       ],
@@ -427,6 +507,8 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
         : tr('Listen, then say:', 'கேட்டு, பிறகு சொல்லுங்கள்:');
     final r = _current;
     final answered = r != null;
+    final kid = _assisted; // parent mode: big picture, few words
+    final family = _hasFamily(item);
 
     return AphScaffold(
       title: widget.kind.title,
@@ -436,16 +518,17 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
         onPressed: () => Navigator.of(context).maybePop(),
       ),
       actions: [
-        if (_serverAvailable && item.referenceAudio != null)
-          const Padding(
-            padding: EdgeInsets.only(right: AphSpace.xs),
+        if (_useServer && !kid)
+          Padding(
+            padding: const EdgeInsets.only(right: AphSpace.xs),
             child: Center(
               child: StatusPill(
-                label: 'Voice match',
+                label: tr('Voice match', 'குரல் பொருத்தம்'),
                 icon: Icons.graphic_eq_rounded,
               ),
             ),
           ),
+        Center(child: StarCounter(stars: _stars)),
       ],
       bottom: answered
           ? Row(
@@ -483,15 +566,26 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
             Expanded(
               child: Semantics(
                 header: true,
-                child: Text(instruction, style: t.titleLarge),
+                child: Text(
+                  kid
+                      ? tr('Say it together, then let your child try.',
+                          'சேர்ந்து சொல்லுங்கள், பிறகு குழந்தையைச் சொல்ல விடுங்கள்.')
+                      : instruction,
+                  style: kid
+                      ? t.bodyLarge?.copyWith(color: AphColors.inkMuted)
+                      : t.titleLarge,
+                ),
               ),
             ),
             ReadAloudButton(
               key: ValueKey('ra_${item.id}_$_cue'),
-              text: _wordVisible ? '$instruction ${item.target}' : instruction,
+              text: _wordVisible && !family
+                  ? '$instruction ${item.target}'
+                  : instruction,
               language: item.locale,
               compact: true,
-              autoPlay: true,
+              // Family voice plays the word itself (see _onItemShown).
+              autoPlay: !(family && _wordVisible),
             ),
           ],
         ),
@@ -501,6 +595,8 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
           wordVisible: _wordVisible,
           cue: _cue,
           onPlay: _playModel,
+          familyVoice: family,
+          big: kid,
         ),
         if (item.hideTarget && !answered && _cue < 3) ...[
           const Gap(AphSpace.sm),
@@ -567,13 +663,14 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
               alignment: WrapAlignment.center,
               spacing: AphSpace.sm,
               children: [
-                AphButton.ghost(
-                  label: tr('Type instead', 'தட்டச்சு செய்'),
-                  icon: Icons.keyboard_rounded,
-                  onPressed: _mic == MicState.idle
-                      ? () => setState(() => _typing = true)
-                      : null,
-                ),
+                if (!kid)
+                  AphButton.ghost(
+                    label: tr('Type instead', 'தட்டச்சு செய்'),
+                    icon: Icons.keyboard_rounded,
+                    onPressed: _mic == MicState.idle
+                        ? () => setState(() => _typing = true)
+                        : null,
+                  ),
                 AphButton.ghost(
                   label: tr('Skip', 'தவிர்'),
                   icon: Icons.skip_next_rounded,
@@ -581,8 +678,19 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
                 ),
               ],
             ),
-        ] else
+        ] else if (kid)
+          KidRewardCard(
+            key: ValueKey('reward_${item.id}_${identityHashCode(r)}'),
+            correct: PracticeRewards.isCorrect(r.score),
+            newStar: _newStar,
+          )
+        else ...[
+          if (_newStar) ...[
+            Center(child: StarBurst(key: ValueKey('burst_${identityHashCode(r)}'), size: 96)),
+            const Gap(AphSpace.sm),
+          ],
           _ResultCard(result: r, item: item, praise: _praise(ScoreBand.of(r.score), r.score)),
+        ],
       ],
     );
   }
@@ -593,6 +701,7 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
     final band = ScoreBand.of(avg);
     final focus = PracticeCatalog.focusFor(avg);
     final tricky = _trickyAll.take(3).toList();
+    final hintsAvg = HintStats.average(_hintsUsed.values);
 
     return AphScaffold(
       title: tr('Session complete', 'அமர்வு முடிந்தது'),
@@ -608,24 +717,47 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
       ),
       children: [
         const Gap(AphSpace.md),
-        Center(child: ScoreRing(score: avg, size: 160)),
-        const Gap(AphSpace.md),
-        Text(
-          band.label,
-          textAlign: TextAlign.center,
-          style: t.headlineMedium?.copyWith(color: band.color),
-        ),
+        if (_assisted)
+          StarsEarned(stars: _stars)
+        else ...[
+          Center(child: ScoreRing(score: avg, size: 160)),
+          const Gap(AphSpace.md),
+          Text(
+            band.label,
+            textAlign: TextAlign.center,
+            style: t.headlineMedium?.copyWith(color: band.color),
+          ),
+          const Gap(AphSpace.xs),
+          Text(
+            _stars == 1
+                ? tr('⭐ 1 star earned', '⭐ 1 நட்சத்திரம் கிடைத்தது')
+                : tr('⭐ $_stars stars earned', '⭐ $_stars நட்சத்திரங்கள் கிடைத்தன'),
+            key: const ValueKey('summary_stars'),
+            textAlign: TextAlign.center,
+            style: t.titleMedium?.copyWith(color: AphColors.accent),
+          ),
+        ],
         const Gap(AphSpace.xs),
         Text(
           _best.isEmpty
               ? tr('No answers this time — that’s okay.', 'இந்த முறை பதில்கள் இல்லை — பரவாயில்லை.')
               : tr(
-                  '${_best.length} of ${_items.length} answered. Every try helps your brain rebuild these words.',
-                  '${_items.length} இல் ${_best.length} பதிலளித்தீர்கள். ஒவ்வொரு முயற்சியும் உதவுகிறது.',
+                  '${_best.length} of ${_items.length} answered. Every try helps.',
+                  '${_items.length} இல் ${_best.length} பதிலளிக்கப்பட்டது. ஒவ்வொரு முயற்சியும் உதவுகிறது.',
                 ),
           textAlign: TextAlign.center,
           style: t.bodyLarge,
         ),
+        if (hintsAvg != null) ...[
+          const Gap(AphSpace.xs),
+          Text(
+            tr('Hints per word: ${HintStats.format(hintsAvg)} (fewer = more on their own)',
+                'ஒரு சொல்லுக்குக் குறிப்புகள்: ${HintStats.format(hintsAvg)} (குறைவு = தானாகச் சொல்கிறது)'),
+            key: const ValueKey('summary_hints'),
+            textAlign: TextAlign.center,
+            style: t.bodyMedium,
+          ),
+        ],
         if (_isAssessment) ...[
           const Gap(AphSpace.lg),
           FeedbackBanner(
@@ -719,6 +851,8 @@ class _PromptCard extends StatelessWidget {
     required this.wordVisible,
     required this.cue,
     required this.onPlay,
+    this.familyVoice = false,
+    this.big = false,
   });
 
   final PracticeItem item;
@@ -726,10 +860,17 @@ class _PromptCard extends StatelessWidget {
   final int cue;
   final VoidCallback onPlay;
 
+  /// Amma/Appa recorded this word — the listen button plays them.
+  final bool familyVoice;
+
+  /// Parent mode: bigger picture and word, no gloss.
+  final bool big;
+
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
     final long = item.target.length > 14;
+    final pictureHeight = big ? 260.0 : 200.0;
     return AphCard(
       padding: const EdgeInsets.all(AphSpace.lg),
       child: Column(
@@ -763,7 +904,7 @@ class _PromptCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(AphRadius.md),
               child: Container(
                 color: AphColors.surfaceSunken,
-                height: 200,
+                height: pictureHeight,
                 width: double.infinity,
                 alignment: Alignment.center,
                 child: Semantics(
@@ -773,7 +914,7 @@ class _PromptCard extends StatelessWidget {
                   excludeSemantics: true,
                   child: Text(
                     item.emoji!,
-                    style: const TextStyle(fontSize: 128, height: 1.1),
+                    style: TextStyle(fontSize: big ? 180 : 128, height: 1.1),
                   ),
                 ),
               ),
@@ -784,10 +925,14 @@ class _PromptCard extends StatelessWidget {
             Text(
               item.target,
               textAlign: TextAlign.center,
-              style: (long ? t.headlineLarge : t.displayMedium)
+              style: (long
+                      ? t.headlineLarge
+                      : big
+                          ? t.displayLarge
+                          : t.displayMedium)
                   ?.copyWith(color: AphColors.ink),
             ),
-            if (item.meaning != null) ...[
+            if (item.meaning != null && !big) ...[
               const Gap(AphSpace.xs),
               Text(item.meaning!,
                   textAlign: TextAlign.center, style: t.bodyLarge),
@@ -809,13 +954,32 @@ class _PromptCard extends StatelessWidget {
             ],
           ],
           const Gap(AphSpace.md),
-          ReadAloudButton(
-            text: item.target,
-            language: item.locale,
-            label: item.referenceAudio != null
-                ? tr('Hear a speaker', 'பேச்சாளரைக் கேளுங்கள்')
-                : tr('Hear it', 'கேளுங்கள்'),
-          ),
+          if (familyVoice && wordVisible) ...[
+            StatusPill(
+              label: tr('Family voice', 'குடும்பக் குரல்'),
+              icon: Icons.favorite_rounded,
+              color: AphColors.accent,
+              soft: AphColors.accentSoft,
+            ),
+            const Gap(AphSpace.xs),
+            AphButton.secondary(
+              key: const ValueKey('play_family_voice'),
+              label: tr('Amma/Appa’s voice', 'அம்மா/அப்பா குரல்'),
+              icon: Icons.record_voice_over_rounded,
+              onPressed: onPlay,
+            ),
+          ] else if (item.referenceAudio != null && wordVisible)
+            AphButton.secondary(
+              label: tr('Hear a speaker', 'பேச்சாளரைக் கேளுங்கள்'),
+              icon: Icons.volume_up_rounded,
+              onPressed: onPlay,
+            )
+          else if (wordVisible)
+            ReadAloudButton(
+              text: item.target,
+              language: item.locale,
+              label: tr('Hear it', 'கேளுங்கள்'),
+            ),
         ],
       ),
     );

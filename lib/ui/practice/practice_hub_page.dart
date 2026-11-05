@@ -1,8 +1,11 @@
 import 'package:aphora/data/learning/practice_catalog.dart';
 import 'package:aphora/data/models/usermodel.dart';
+import 'package:aphora/logic/comfort_settings.dart';
+import 'package:aphora/logic/family_voice_store.dart';
 import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/ui/design/components.dart';
+import 'package:aphora/ui/practice/family_voice_page.dart';
 import 'package:aphora/ui/practice/picture_match_page.dart';
 import 'package:aphora/ui/practice/practice_session_page.dart';
 import 'package:flutter/material.dart';
@@ -47,6 +50,31 @@ class PracticeHubPage extends StatelessWidget {
                   'சிறிய பயிற்சிகள். தினமும் கொஞ்சம் செய்யுங்கள் — நீண்ட அமர்வுகளை விட தொடர்ச்சியே முக்கியம்.'),
               style: Theme.of(context).textTheme.bodyLarge,
             ),
+            const Gap(AphSpace.md),
+            const _ParentModeSwitch(),
+            const Gap(AphSpace.sm),
+            ValueListenableBuilder<Set<String>>(
+              valueListenable: FamilyVoiceStore.instance.recorded,
+              builder: (context, _, _) {
+                final words = PracticeCatalog.familyWords();
+                final done = FamilyVoiceStore.instance
+                    .countRecorded(words.map((w) => w.voiceKey));
+                return ActionTile(
+                  key: const ValueKey('hub_family_voice'),
+                  icon: Icons.record_voice_over_rounded,
+                  title: tr('Family Voice', 'குடும்பக் குரல்'),
+                  subtitle: tr(
+                      'Record words in your own voice · $done of ${words.length} words recorded',
+                      'உங்கள் குரலில் சொற்களைப் பதிவு செய்யுங்கள் · ${words.length} இல் $done'),
+                  color: AphColors.accent,
+                  softColor: AphColors.accentSoft,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const FamilyVoicePage()),
+                  ),
+                );
+              },
+            ),
             SectionHeader(tr('Speaking', 'பேசுதல்')),
             tile(PracticeKind.letters, AphColors.letters, AphColors.lettersSoft),
             tile(PracticeKind.words, AphColors.words, AphColors.wordsSoft),
@@ -84,6 +112,37 @@ class PracticeHubPage extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Parent mode = the existing assisted mode, reworded for families: big
+/// pictures, few words, stars after each correct try.
+class _ParentModeSwitch extends StatelessWidget {
+  const _ParentModeSwitch();
+
+  @override
+  Widget build(BuildContext context) {
+    final mode = ComfortSettings.instance.assistedMode;
+    return ValueListenableBuilder<bool>(
+      valueListenable: mode,
+      builder: (context, on, _) => AphCard(
+        padding: EdgeInsets.zero,
+        child: Material(
+          type: MaterialType.transparency,
+          child: SwitchListTile(
+            key: const ValueKey('hub_parent_mode'),
+            value: on,
+            onChanged: (v) => mode.value = v,
+            secondary: const Icon(Icons.family_restroom_rounded,
+                color: AphColors.accent),
+            title: Text(tr('Practise together (parent mode)',
+                'சேர்ந்து பயிற்சி (பெற்றோர் முறை)')),
+            subtitle: Text(tr('Big pictures and stars for your child',
+                'குழந்தைக்குப் பெரிய படங்களும் நட்சத்திரங்களும்')),
+          ),
+        ),
+      ),
     );
   }
 }
