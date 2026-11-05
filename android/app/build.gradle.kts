@@ -27,7 +27,9 @@ android {
         applicationId = "com.thodar.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // 26: the native Jitsi Meet SDK (org.jitsi.react:jitsi-meet-sdk 13.3.0)
+        // declares minSdk 26, above Flutter's default of 24.
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

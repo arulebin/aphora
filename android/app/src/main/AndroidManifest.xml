@@ -10,6 +10,11 @@
     <!-- Camera for video calls (Jitsi) -->
     <uses-permission android:name="android.permission.CAMERA" />
     
+    <!-- The Jitsi SDK declares calendar access for its meeting-list feature,
+         which Vernacura turns off (calendar.enabled=false); don't ask for it. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" tools:node="remove" />
+
     <!-- Network state for connectivity checks -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     

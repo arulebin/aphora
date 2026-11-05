@@ -93,12 +93,17 @@ keep the server patched.
 
 ## Platform requirements (SDK 13.3.0)
 
-- **Android:** minSdk 24 (Flutter 3.44's default is already 24 — unchanged).
+- **Android:** minSdk **26** (Android 8.0). The Flutter plugin and its pub.dev
+  page say 24, but the native `org.jitsi.react:jitsi-meet-sdk:13.3.0` AAR it
+  pulls in declares 26, so the manifest merge fails below that. Was Flutter's
+  default, 24.
   The SDK's manifest sets `android:label`, so the app's `<application>`
   carries `tools:replace="android:label"`. Release builds keep the Jitsi /
   React Native classes via `android/app/proguard-rules.pro` (copied from the
   jitsi-meet repo). Camera + microphone permissions stay in the manifest;
-  the SDK adds the rest (Bluetooth, foreground service…) itself.
+  the SDK adds the rest (Bluetooth, foreground service, notifications…)
+  itself, except calendar access, which the manifest strips with
+  `tools:node="remove"` because the calendar feature is off.
 - **iOS:** platform 15.1 (`ios/Podfile`, `IPHONEOS_DEPLOYMENT_TARGET`).
   `NSCameraUsageDescription` and `NSMicrophoneUsageDescription` are already
   in `Info.plist`.
