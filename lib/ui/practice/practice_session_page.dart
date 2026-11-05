@@ -668,14 +668,15 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
               alignment: WrapAlignment.center,
               spacing: AphSpace.sm,
               children: [
-                if (!kid)
-                  AphButton.ghost(
-                    label: tr('Type instead', 'தட்டச்சு செய்'),
-                    icon: Icons.keyboard_rounded,
-                    onPressed: _mic == MicState.idle
-                        ? () => setState(() => _typing = true)
-                        : null,
-                  ),
+                // Kept in parent mode too: phone speech recognition often
+                // mishears children, so the parent types what the child said.
+                AphButton.ghost(
+                  label: tr('Type instead', 'தட்டச்சு செய்'),
+                  icon: Icons.keyboard_rounded,
+                  onPressed: _mic == MicState.idle
+                      ? () => setState(() => _typing = true)
+                      : null,
+                ),
                 AphButton.ghost(
                   label: tr('Skip', 'தவிர்'),
                   icon: Icons.skip_next_rounded,

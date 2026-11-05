@@ -51,14 +51,21 @@ class _UserInfoPageState extends State<UserInfoPage> {
     }
     if (!_form.currentState!.validate()) return;
     if (_gender == null || _severity == null) {
-      setState(() => _error = tr('Please answer every question above.',
-          'மேலே உள்ள அனைத்துக் கேள்விகளுக்கும் பதிலளிக்கவும்.'));
+      setState(
+        () => _error = tr(
+          'Please answer every question above.',
+          'மேலே உள்ள அனைத்துக் கேள்விகளுக்கும் பதிலளிக்கவும்.',
+        ),
+      );
       return;
     }
     if (!_consent) {
-      setState(() => _error = tr(
+      setState(
+        () => _error = tr(
           'Please tick the box to agree before creating the account.',
-          'கணக்கை உருவாக்கும் முன் ஒப்புதல் பெட்டியைத் தேர்வு செய்யவும்.'));
+          'கணக்கை உருவாக்கும் முன் ஒப்புதல் பெட்டியைத் தேர்வு செய்யவும்.',
+        ),
+      );
       return;
     }
     setState(() {
@@ -75,8 +82,10 @@ class _UserInfoPageState extends State<UserInfoPage> {
         aphasiaType: _type,
         severityLevel: _severity!,
       );
-      await Locator.userDatabaseService
-          .recordParentConsent(created.uid, version: consentVersion);
+      await Locator.userDatabaseService.recordParentConsent(
+        created.uid,
+        version: consentVersion,
+      );
       // A parent always practises alongside the child: start every new
       // account with the hand-over screen and helper log switched on.
       ComfortSettings.instance.assistedMode.value = true;
@@ -84,8 +93,12 @@ class _UserInfoPageState extends State<UserInfoPage> {
     } on AuthFailure catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
-      setState(() => _error = tr('Could not create the account. Please try again.',
-          'கணக்கை உருவாக்க முடியவில்லை.'));
+      setState(
+        () => _error = tr(
+          'Could not create the account. Please try again.',
+          'கணக்கை உருவாக்க முடியவில்லை.',
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -95,8 +108,10 @@ class _UserInfoPageState extends State<UserInfoPage> {
   Widget build(BuildContext context) {
     return AuthShell(
       title: tr('About your child', 'உங்கள் குழந்தையைப் பற்றி'),
-      subtitle: tr('Step 2 of 2 · This helps us pick the right exercises.',
-          'படி 2/2 · சரியான பயிற்சிகளைத் தேர்ந்தெடுக்க உதவும்.'),
+      subtitle: tr(
+        'Step 2 of 2 · This helps us pick the right exercises.',
+        'படி 2/2 · சரியான பயிற்சிகளைத் தேர்ந்தெடுக்க உதவும்.',
+      ),
       footer: [
         Center(
           child: AphButton.ghost(
@@ -136,7 +151,10 @@ class _UserInfoPageState extends State<UserInfoPage> {
                 validator: (v) {
                   final n = int.tryParse(v ?? '');
                   return n == null || n < 2 || n > 18
-                      ? tr('Enter an age between 2 and 18.', '2 முதல் 18 வரை வயதை உள்ளிடவும்.')
+                      ? tr(
+                          'Enter an age between 2 and 18.',
+                          '2 முதல் 18 வரை வயதை உள்ளிடவும்.',
+                        )
                       : null;
                 },
               ),
@@ -152,10 +170,14 @@ class _UserInfoPageState extends State<UserInfoPage> {
               ),
               const Gap(AphSpace.lg),
               ChoiceGroup<String>(
-                label: tr('What worries you most about their speech?',
-                    'குழந்தையின் பேச்சில் உங்களுக்கு எது அதிகம் கவலை தருகிறது?'),
-                helper: tr('"Not sure" is fine — the sound check will help.',
-                    '"தெரியவில்லை" என்றும் சொல்லலாம் — ஒலிப் பரிசோதனை உதவும்.'),
+                label: tr(
+                  'What worries you most about their speech?',
+                  'குழந்தையின் பேச்சில் உங்களுக்கு எது அதிகம் கவலை தருகிறது?',
+                ),
+                helper: tr(
+                  '"Not sure" is fine — the sound check will help.',
+                  '"தெரியவில்லை" என்றும் சொல்லலாம் — ஒலிப் பரிசோதனை உதவும்.',
+                ),
                 options: [
                   for (final c in ChildProfile.concerns)
                     (c, ChildProfile.concern(c), null),
@@ -165,8 +187,10 @@ class _UserInfoPageState extends State<UserInfoPage> {
               ),
               const Gap(AphSpace.lg),
               ChoiceGroup<String>(
-                label: tr('How easily do others understand them?',
-                    'மற்றவர்களுக்குக் குழந்தையின் பேச்சு எவ்வளவு புரிகிறது?'),
+                label: tr(
+                  'How easily do others understand them?',
+                  'மற்றவர்களுக்குக் குழந்தையின் பேச்சு எவ்வளவு புரிகிறது?',
+                ),
                 options: [
                   for (final c in ChildProfile.clarities)
                     (c, ChildProfile.clarity(c), null),
@@ -177,23 +201,36 @@ class _UserInfoPageState extends State<UserInfoPage> {
               const Gap(AphSpace.lg),
               AphCard(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: AphSpace.xs, vertical: AphSpace.xs),
-                child: CheckboxListTile(
-                  key: const Key('parent-consent'),
-                  value: _consent,
-                  onChanged: (v) => setState(() => _consent = v ?? false),
-                  controlAffinity: ListTileControlAffinity.leading,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: AphSpace.xs),
-                  title: Text(tr(
-                    "I am this child's parent or guardian, and I agree",
-                    'நான் இந்தக் குழந்தையின் பெற்றோர் / பாதுகாவலர், நான் ஒப்புக்கொள்கிறேன்',
-                  )),
-                  subtitle: Text(tr(
-                    "Vernacura saves your child's name, age and practice results to show progress, and shares them only with the therapist you link. "
-                        'Family Voice recordings stay on this phone. You can delete the account at any time from Me.',
-                    'முன்னேற்றத்தைக் காட்ட குழந்தையின் பெயர், வயது, பயிற்சி முடிவுகளை Vernacura சேமிக்கிறது; நீங்கள் இணைக்கும் சிகிச்சையாளருடன் மட்டுமே பகிரப்படும். '
-                        'குடும்பக் குரல் பதிவுகள் இந்தத் தொலைபேசியிலேயே இருக்கும். "நான்" பக்கத்தில் எப்போது வேண்டுமானாலும் கணக்கை நீக்கலாம்.',
-                  )),
+                  horizontal: AphSpace.xs,
+                  vertical: AphSpace.xs,
+                ),
+                // Transparent Material so the tile's ink isn't hidden by the
+                // card's decoration (Flutter asserts on that).
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: CheckboxListTile(
+                    key: const Key('parent-consent'),
+                    value: _consent,
+                    onChanged: (v) => setState(() => _consent = v ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: AphSpace.xs,
+                    ),
+                    title: Text(
+                      tr(
+                        "I am this child's parent or guardian, and I agree",
+                        'நான் இந்தக் குழந்தையின் பெற்றோர் / பாதுகாவலர், நான் ஒப்புக்கொள்கிறேன்',
+                      ),
+                    ),
+                    subtitle: Text(
+                      tr(
+                        "Vernacura saves your child's name, age and practice results to show progress, and shares them only with the therapist you link. "
+                            'Family Voice recordings stay on this phone. You can delete the account at any time from Me.',
+                        'முன்னேற்றத்தைக் காட்ட குழந்தையின் பெயர், வயது, பயிற்சி முடிவுகளை Vernacura சேமிக்கிறது; நீங்கள் இணைக்கும் சிகிச்சையாளருடன் மட்டுமே பகிரப்படும். '
+                            'குடும்பக் குரல் பதிவுகள் இந்தத் தொலைபேசியிலேயே இருக்கும். "நான்" பக்கத்தில் எப்போது வேண்டுமானாலும் கணக்கை நீக்கலாம்.',
+                      ),
+                    ),
+                  ),
                 ),
               ),
               if (_error != null) ...[
