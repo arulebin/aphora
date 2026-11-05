@@ -163,8 +163,8 @@ class _HomePageState extends State<HomePage> {
                 icon: Icons.assignment_rounded,
                 title: tr('Start with a speech check-up', 'பேச்சு மதிப்பீட்டுடன் தொடங்குங்கள்'),
                 subtitle: tr(
-                  '10 minutes. We use it to choose the right exercises for you.',
-                  '10 நிமிடம். உங்களுக்கு ஏற்ற பயிற்சிகளைத் தேர்ந்தெடுக்க.',
+                  'About ${PracticeKind.assessment.minutes} minutes. It helps us choose the right exercises for your child.',
+                  'சுமார் ${PracticeKind.assessment.minutes} நிமிடம். உங்கள் குழந்தைக்கு ஏற்ற பயிற்சிகளைத் தேர்ந்தெடுக்க உதவும்.',
                 ),
                 color: AphColors.accent,
                 softColor: AphColors.accentSoft,
