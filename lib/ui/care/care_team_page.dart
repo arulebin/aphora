@@ -160,11 +160,13 @@ class _CareTeamPageState extends State<CareTeamPage> {
   List<Widget> _unlinked(BuildContext context) {
     final t = Theme.of(context).textTheme;
     return [
-      const EmptyState(
+      EmptyState(
         icon: Icons.handshake_rounded,
-        title: 'Connect with your therapist',
-        message:
-            'Your speech therapist can follow your practice, leave notes, and meet you on video.',
+        title: tr('Connect with your therapist',
+            'உங்கள் சிகிச்சையாளருடன் இணையுங்கள்'),
+        message: tr(
+            'Your child’s speech therapist can follow their practice, leave you notes, and meet you on video.',
+            'உங்கள் குழந்தையின் பேச்சு சிகிச்சையாளர் பயிற்சியைப் பார்க்கலாம், உங்களுக்குக் குறிப்புகள் எழுதலாம், வீடியோவில் சந்திக்கலாம்.'),
       ),
       AphCard(
         child: Column(
@@ -444,7 +446,7 @@ class BookingTile extends StatelessWidget {
                 ...?actions,
                 if (onCancel != null)
                   AphButton.ghost(
-                    label: 'Cancel',
+                    label: tr('Cancel', 'ரத்து செய்'),
                     icon: Icons.close_rounded,
                     onPressed: onCancel,
                   ),
