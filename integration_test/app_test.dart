@@ -25,6 +25,7 @@ String heard = '';
 const patientPhone = '9000000201';
 const patientPassword = 'kid123';
 const adultPhone = '9000000202';
+const oralPhone = '9000000203';
 const therapistPhone = '9000000301';
 const therapistPassword = 'ther123';
 
@@ -364,6 +365,52 @@ void main() {
     await d.wait(find.text('Listen and point'), why: 'adult picture match tile');
     expect(find.text('Little sentences'), findsNothing, reason: "no children's exercises");
     await d.shot('adult_practice_hub');
+
+    // ── Adult: "Myself" → mouth/tongue surgery lands on the oral pack ─
+    await d.tab('Me');
+    await d.tap(find.widgetWithText(AphButton, 'Sign out'), why: 'Sign out (stroke adult)');
+    await d.tap(find.text('Sign out').last, why: 'confirm sign out (stroke adult)');
+    await d.wait(find.text('Welcome back'), why: 'login before oral sign-up');
+    await d.tapText('Create a new account');
+    await d.wait(find.text('Your mobile number'), why: 'oral sign-up step 1');
+    await d.typeAt(0, oralPhone);
+    await d.typeAt(1, patientPassword);
+    await d.typeAt(2, patientPassword);
+    await d.tap(find.widgetWithText(AphButton, 'Continue'), why: 'oral Continue');
+    await d.wait(find.text('Who is this for?'), why: 'oral who question');
+    await d.tapText('Myself');
+    await d.wait(find.text('Your name'), why: 'oral adult step 2');
+    await d.typeAt(0, 'Selvi');
+    await d.typeAt(1, '58');
+    await d.tapText('Woman');
+    await d.tap(find.byKey(const Key('parent-consent')), why: 'oral consent');
+    await d.tap(find.widgetWithText(AphButton, 'Create account'), why: 'oral Create account');
+    await d.wait(find.text('A few questions'), why: 'oral questionnaire', seconds: 30);
+    await d.answer('Surgery for mouth or tongue cancer');
+    await d.answer('Part of the tongue removed');
+    await d.answer('3 to 12 months');
+    await d.answer('Yes, finished'); // radiotherapy finished: no hold flag
+    await d.answer('Most of it'); // understood by family
+    await d.answer('Yes'); // understood outside the family / on the phone
+    await d.answer('A little'); // effect on daily life
+    await d.answer('No'); // no pain, bleeding or open wound
+    await d.answer('No', next: 'See the result'); // no coughing or choking
+    await d.wait(find.text('Speech after mouth or tongue surgery'), why: 'oral pack on the result');
+    await d.wait(find.text('Level 3 · short sentences'), why: 'oral start level');
+    expect(find.text('Your exercises are being prepared'), findsNothing);
+    await d.shot('oral_intake_result');
+    await d.tap(find.widgetWithText(AphButton, 'Save and continue'), why: 'save oral intake');
+    await d.wait(find.text('Today'), why: 'oral Today', seconds: 30);
+    await d.wait(find.text("Start: Today's session"), why: 'oral daily plan');
+    await d.shot('oral_today');
+    await d.tab('Practice');
+    await d.wait(find.textContaining('Start these exercises only after your surgeon'),
+        why: 'oral safety line on the hub');
+    await d.wait(find.text('Sound warm-up'), why: 'oral hub');
+    await d.wait(find.text('One word at a time'), why: 'oral clear-speech tile');
+    await d.wait(find.text('Monthly clarity check'), why: 'oral check-up tile');
+    expect(find.text('Familiar sequences'), findsNothing, reason: 'no aphasia exercises');
+    await d.shot('oral_practice_hub');
 
     if (d.notes.isNotEmpty) {
       // ignore: avoid_print
