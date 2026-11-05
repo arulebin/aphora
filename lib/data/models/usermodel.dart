@@ -1,6 +1,7 @@
 import 'package:aphora/data/intake/condition.dart';
 import 'package:aphora/data/intake/intake_questions.dart';
 import 'package:aphora/data/intake/intake_record.dart';
+import 'package:aphora/data/models/oral_records.dart';
 
 class UserModel {
   final String uid;
@@ -88,6 +89,17 @@ class UserModel {
         2;
   }
 
+  /// Oral-cancer pack: the person's details for phrase templates
+  /// (`{name}`, `{address}`, `{phone}`, `{son_phone}`, `{place}`).
+  final Map<String, String> oralPersonal;
+
+  /// Oral-cancer pack: the safety line was confirmed (see
+  /// `OralCancerPack.safetyFor`).
+  final SafetyConfirmation? oralSafety;
+
+  /// Oral-cancer pack: monthly clarity checks, oldest first.
+  final List<ClarityTest> oralClarityTests;
+
   /// The therapist set the pack or the level.
   bool get setByTherapist => therapistCondition != null || therapistLevel != null;
 
@@ -150,6 +162,9 @@ class UserModel {
     this.intake,
     this.therapistCondition,
     this.therapistLevel,
+    this.oralPersonal = const {},
+    this.oralSafety,
+    this.oralClarityTests = const [],
     required this.createdAt,
     required this.updatedAt,
   }) : dailyActivity = dailyActivity ?? <String, int>{},
@@ -185,6 +200,9 @@ class UserModel {
       if (intake != null) 'intake': intake!.toMap(),
       'therapistCondition': therapistCondition?.id,
       'therapistLevel': therapistLevel,
+      'oralPersonal': oralPersonal,
+      if (oralSafety != null) 'oralSafety': oralSafety!.toMap(),
+      'oralClarityTests': [for (final t in oralClarityTests) t.toMap()],
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -225,6 +243,15 @@ class UserModel {
       intake: IntakeRecord.tryFromMap(map['intake']),
       therapistCondition: parseTherapistCondition(map['therapistCondition']),
       therapistLevel: parseTherapistLevel(map['therapistLevel']),
+      oralPersonal: {
+        for (final e in ((map['oralPersonal'] as Map?) ?? const {}).entries)
+          '${e.key}': '${e.value}',
+      },
+      oralSafety: SafetyConfirmation.tryFromMap(map['oralSafety']),
+      oralClarityTests: [
+        for (final t in (map['oralClarityTests'] as List?) ?? const [])
+          if (ClarityTest.tryFromMap(t) case final c?) c,
+      ]..sort((a, b) => a.at.compareTo(b.at)),
       createdAt: DateTime.parse(
         map['createdAt'] ?? DateTime.now().toIso8601String(),
       ),
@@ -278,6 +305,9 @@ class UserModel {
     String? therapistNote,
     Condition? condition,
     IntakeRecord? intake,
+    Map<String, String>? oralPersonal,
+    SafetyConfirmation? oralSafety,
+    List<ClarityTest>? oralClarityTests,
     DateTime? updatedAt,
   }) {
     return UserModel(
@@ -308,6 +338,9 @@ class UserModel {
       intake: intake ?? this.intake,
       therapistCondition: therapistCondition,
       therapistLevel: therapistLevel,
+      oralPersonal: oralPersonal ?? this.oralPersonal,
+      oralSafety: oralSafety ?? this.oralSafety,
+      oralClarityTests: oralClarityTests ?? this.oralClarityTests,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );

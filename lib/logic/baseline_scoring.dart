@@ -93,7 +93,7 @@ class OralAttempt {
   static OralAttempt? fromRecord(AttemptRecord r, {double? cer}) => from(
         itemId: r.taskId,
         at: r.createdAt,
-        cer: cer,
+        cer: cer ?? r.cer,
         serverScore: r.method == 'server' ? r.score : null,
         deviceScore: r.method == 'server' ? null : r.score,
         transcript: r.spoken,

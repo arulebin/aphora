@@ -95,7 +95,9 @@ abstract final class OralRehabPack {
         PracticeKind.phonetic ||
         PracticeKind.automatic ||
         PracticeKind.repetition ||
-        PracticeKind.completion =>
+        PracticeKind.completion ||
+        // A mixed session; build it with [dailySession].
+        PracticeKind.daily =>
           null,
       };
 

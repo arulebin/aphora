@@ -77,7 +77,10 @@ class AphasiaPack extends ConditionPack {
 
   static AphasiaTask? taskFor(PracticeKind kind) => switch (kind) {
         PracticeKind.automatic || PracticeKind.letters => AphasiaTask.automatic,
-        PracticeKind.repetition || PracticeKind.words => AphasiaTask.repetition,
+        PracticeKind.repetition ||
+        PracticeKind.words ||
+        PracticeKind.daily =>
+          AphasiaTask.repetition,
         PracticeKind.naming => AphasiaTask.naming,
         PracticeKind.completion => AphasiaTask.completion,
         PracticeKind.functional || PracticeKind.sentences => AphasiaTask.functional,

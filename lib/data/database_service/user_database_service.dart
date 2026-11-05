@@ -1,5 +1,6 @@
 import 'package:aphora/data/intake/condition.dart';
 import 'package:aphora/data/intake/intake_record.dart';
+import 'package:aphora/data/models/oral_records.dart';
 import 'package:aphora/data/models/practice_record.dart';
 import 'package:aphora/logic/intake_engine.dart';
 import 'package:aphora/data/models/therapist_model.dart';
@@ -246,6 +247,40 @@ class UserDatabaseService {
     );
   }
 
+  /// Oral-cancer pack: details for the personal phrase templates.
+  Future<void> saveOralPersonal(Map<String, String> details) async {
+    final user = currentUser.value;
+    if (user == null) return;
+    final clean = {
+      for (final e in details.entries)
+        if (e.value.trim().isNotEmpty) e.key: e.value.trim(),
+    };
+    await _db.collection(userCollection).doc(user.uid).update({'oralPersonal': clean});
+    currentUser.value = user.copyWith(oralPersonal: clean);
+  }
+
+  /// Oral-cancer pack: the person confirmed the safety line ([hold]: their
+  /// surgeon / care team said they may start). Stored with the time.
+  Future<void> confirmOralSafety({required bool hold}) async {
+    final user = currentUser.value;
+    if (user == null) return;
+    final c = SafetyConfirmation(at: DateTime.now(), hold: hold);
+    // Local first: offline, Firestore queues the write and practice opens.
+    currentUser.value = user.copyWith(oralSafety: c);
+    await _db.collection(userCollection).doc(user.uid).update({'oralSafety': c.toMap()});
+  }
+
+  /// Oral-cancer pack: one monthly clarity check result.
+  Future<void> saveClarityTest(ClarityTest test) async {
+    final user = currentUser.value;
+    if (user == null) return;
+    await _db.collection(userCollection).doc(user.uid).update({
+      'oralClarityTests': FieldValue.arrayUnion([test.toMap()]),
+    });
+    currentUser.value =
+        user.copyWith(oralClarityTests: [...user.oralClarityTests, test]);
+  }
+
   Future<void> setLanguagePreference(String language) async {
     final user = currentUser.value;
     if (user == null) return;
@@ -266,6 +301,7 @@ class UserDatabaseService {
     String method = 'device',
     bool assisted = false,
     int hintsUsed = 0,
+    double? cer,
   }) async {
     final user = currentUser.value;
     if (user == null) return null;
@@ -315,6 +351,7 @@ class UserDatabaseService {
           assisted: assisted,
           hintsUsed: hintsUsed,
           createdAt: DateTime.now(),
+          cer: cer,
         ).toMap(),
       );
     await batch.commit();

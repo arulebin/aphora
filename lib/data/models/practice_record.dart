@@ -14,6 +14,7 @@ class AttemptRecord {
     required this.createdAt,
     this.hintsUsed = 0,
     this.id = '',
+    this.cer,
   });
 
   final String id;
@@ -39,6 +40,10 @@ class AttemptRecord {
   final int hintsUsed;
   final DateTime createdAt;
 
+  /// Server character error rate (0–1+) when the server scored the
+  /// attempt; used by the oral-cancer self-baseline scoring.
+  final double? cer;
+
   Map<String, dynamic> toMap() => {
         'taskId': taskId,
         'category': category,
@@ -49,6 +54,7 @@ class AttemptRecord {
         'assisted': assisted,
         'hintsUsed': hintsUsed,
         'createdAt': Timestamp.fromDate(createdAt),
+        if (cer != null) 'cer': cer,
       };
 
   factory AttemptRecord.fromMap(String id, Map<String, dynamic> m) =>
@@ -63,6 +69,7 @@ class AttemptRecord {
         assisted: m['assisted'] == true,
         hintsUsed: (m['hintsUsed'] as num? ?? 0).toInt(),
         createdAt: _date(m['createdAt']),
+        cer: (m['cer'] as num?)?.toDouble(),
       );
 }
 

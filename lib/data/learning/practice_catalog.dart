@@ -29,6 +29,8 @@ enum PracticeKind {
   completion,
   functional,
   clearSpeech,
+  // Oral-cancer pack: one mixed ~10-minute session built for the day.
+  daily,
 }
 
 /// Default (children's) names. A pack may rename a kind for its audience —
@@ -51,6 +53,7 @@ extension PracticeKindInfo on PracticeKind {
           tr('Finish the sentence', 'வாக்கியத்தை முடியுங்கள்'),
         PracticeKind.functional => tr('Everyday needs', 'அன்றாடத் தேவைகள்'),
         PracticeKind.clearSpeech => tr('Clear speech', 'தெளிவான பேச்சு'),
+        PracticeKind.daily => tr("Today's session", 'இன்றைய பயிற்சி'),
       };
 
   String get description => switch (this) {
@@ -83,6 +86,9 @@ extension PracticeKindInfo on PracticeKind {
         PracticeKind.clearSpeech => tr(
             'Slow and strong, one part at a time',
             'மெதுவாக, அழுத்தமாக, ஒவ்வொரு பகுதியாக'),
+        PracticeKind.daily => tr(
+            'About 10 minutes: sounds, words, pairs, phrases, one word at a time',
+            'சுமார் 10 நிமிடம்: ஒலிகள், சொற்கள், இணைகள், சொற்றொடர்கள், ஒவ்வொரு சொல்லாக'),
       };
 
   IconData get icon => switch (this) {
@@ -98,6 +104,7 @@ extension PracticeKindInfo on PracticeKind {
         PracticeKind.completion => Icons.short_text_rounded,
         PracticeKind.functional => Icons.volunteer_activism_rounded,
         PracticeKind.clearSpeech => Icons.slow_motion_video_rounded,
+        PracticeKind.daily => Icons.today_rounded,
       };
 
   /// Rough minutes per session, for the daily plan. Kept short: young
@@ -116,6 +123,7 @@ extension PracticeKindInfo on PracticeKind {
         PracticeKind.completion => 3,
         PracticeKind.functional => 3,
         PracticeKind.clearSpeech => 3,
+        PracticeKind.daily => 10,
       };
 }
 
@@ -135,6 +143,7 @@ class PracticeItem {
     this.familyKey,
     this.prompt,
     this.instruction,
+    this.chunks,
   });
 
   /// Stable id used in Firestore attempts.
@@ -180,6 +189,10 @@ class PracticeItem {
 
   /// Overrides the session's line above the card ("Finish the sentence:").
   final String? instruction;
+
+  /// Paced speech: the target split into the words to say one at a time,
+  /// with a pause after each (oral-cancer "one word at a time").
+  final List<String>? chunks;
 
   /// Key of the Family Voice recording for this item. Includes the
   /// language because the Tamil and English words are different recordings.

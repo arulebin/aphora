@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:aphora/data/intake/condition.dart';
 import 'package:aphora/data/learning/practice_catalog.dart';
+import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/language_service.dart';
 import 'package:flutter/material.dart';
 
@@ -93,6 +94,48 @@ abstract class ConditionPack {
 
   /// Plan id for Picture match.
   static const pictureMatchId = 'picture';
+
+  // ── Per-person tailoring and safety (defaults: none) ─────────────────
+
+  /// A copy of this pack for [user] (e.g. their personal phrases, the day
+  /// of their programme). `ConditionPacks.forUser` always calls it.
+  ConditionPack tailorTo(UserModel? user) => this;
+
+  /// Shown on the hub and before the first session; null = none.
+  String? get safetyLine => null;
+
+  /// Kept visible during every session; null = none.
+  String? get restCue => null;
+
+  /// What must happen before [user] may practise.
+  PracticeSafety safetyFor(UserModel? user) => PracticeSafety.clear;
+
+  /// The check-up result sets the practice level (placement). False for a
+  /// pure measure such as the oral-cancer monthly clarity check.
+  bool get checkUpSetsLevel => true;
+
+  /// The check-up only measures: no hints, no spoken model, fixed order.
+  bool get checkUpIsMeasure => false;
+
+  /// Today should offer the check-up.
+  bool checkUpDue(UserModel user) => user.preAssessmentScore == null;
+
+  /// Patient sees progress against their own starting point instead of a
+  /// score (no numbers, no "wrong").
+  bool get selfBaselineScoring => false;
+}
+
+/// Safety step before practice.
+enum PracticeSafety {
+  /// Nothing to do.
+  clear,
+
+  /// Show the safety line once and let the person acknowledge it.
+  notice,
+
+  /// Practice stays closed until the person confirms their surgeon or
+  /// care team said they may start.
+  hold,
 }
 
 /// One picture in Picture match. Labels are already in the session
