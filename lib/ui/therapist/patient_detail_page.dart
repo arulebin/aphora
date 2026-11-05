@@ -1,3 +1,4 @@
+import 'package:aphora/data/learning/child_profile.dart';
 import 'package:aphora/data/models/practice_record.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/locator.dart';
@@ -7,7 +8,7 @@ import 'package:aphora/ui/video_call/videocall_page.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-/// Therapist view of one patient: clinical summary, a note the patient
+/// Therapist view of one child: clinical summary, a note the patient
 /// sees on their Today screen (replaces the "Messaging coming soon" stub),
 /// score trend, recent attempts with what was heard, and helper logs.
 class PatientDetailPage extends StatefulWidget {
@@ -49,7 +50,7 @@ class _PatientDetailPageState extends State<PatientDetailPage> {
     try {
       await _db.setTherapistNote(widget.patient.uid, _note.text);
       if (mounted) {
-        showAphSnack(context, 'Note saved — the patient sees it on their Today screen.',
+        showAphSnack(context, 'Note saved — the parent sees it on their Today screen.',
             tone: FeedbackTone.success);
       }
     } catch (_) {
@@ -82,9 +83,10 @@ class _PatientDetailPageState extends State<PatientDetailPage> {
                 spacing: AphSpace.xs,
                 runSpacing: AphSpace.xs,
                 children: [
-                  StatusPill(label: '${p.age} yrs · ${p.gender}'),
-                  StatusPill(label: p.aphasiaType.isEmpty ? 'Type not set' : p.aphasiaType),
-                  StatusPill(label: 'Severity: ${p.severityLevel.isEmpty ? '—' : p.severityLevel}'),
+                  StatusPill(label: '${p.age} yrs · ${ChildProfile.gender(p.gender)}'),
+                  StatusPill(label: 'Worry: ${ChildProfile.concern(p.aphasiaType)}'),
+                  if (p.severityLevel.isNotEmpty)
+                    StatusPill(label: ChildProfile.clarity(p.severityLevel)),
                   StatusPill(label: 'Language: ${p.languagePreference}'),
                   if (p.preAssessmentScore != null)
                     StatusPill(
@@ -120,7 +122,7 @@ class _PatientDetailPageState extends State<PatientDetailPage> {
           ),
         ),
         SectionHeader(
-          'Note for patient & helper',
+          'Note for the parent',
           subtitle: 'Shown on their Today screen and read aloud on request.',
         ),
         AphTextField(

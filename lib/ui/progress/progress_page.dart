@@ -1,3 +1,4 @@
+import 'package:aphora/data/learning/practice_catalog.dart';
 import 'package:aphora/data/models/practice_record.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/language_service.dart';
@@ -6,7 +7,7 @@ import 'package:aphora/ui/design/components.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-/// Score trend, totals and recent sessions for the signed-in patient.
+/// Score trend, totals and recent sessions for the signed-in child.
 /// Also reused by the therapist's patient view via [ProgressBody].
 class ProgressPage extends StatefulWidget {
   const ProgressPage({super.key});
@@ -44,7 +45,7 @@ class _ProgressPageState extends State<ProgressPage> {
           _load(user);
         }
         return AphScaffold(
-          title: tr('Progress', 'முன்னேற்றம்'),
+          title: tr('Progress', 'வளர்ச்சி'),
           showBack: false,
           onRefresh: () async => setState(() => _load(user)),
           children: [
@@ -195,7 +196,7 @@ class ProgressBody extends StatelessWidget {
                     icon: Icons.history_rounded,
                     title: tr('No sessions yet', 'இன்னும் அமர்வுகள் இல்லை'),
                     message: forTherapist
-                        ? 'Sessions appear here once the patient finishes an exercise.'
+                        ? 'Sessions appear here once the child finishes an exercise.'
                         : tr('Finish an exercise and it will appear here.',
                             'ஒரு பயிற்சியை முடித்தால் இங்கே தோன்றும்.'),
                   )
@@ -222,22 +223,25 @@ class ProgressBody extends StatelessWidget {
     );
   }
 
-  static String _catName(String c) => switch (c) {
-        'letters' => tr('Letter sounds', 'எழுத்து ஒலிகள்'),
-        'words' => tr('Say the word', 'சொல்லைச் சொல்லுங்கள்'),
-        'naming' => tr('Naming', 'பெயரிடுதல்'),
-        'sentences' => tr('Sentences', 'வாக்கியங்கள்'),
-        'phonetic' => tr('Sound match', 'ஒலி பொருத்தம்'),
-        'assessment' => tr('Check-up', 'மதிப்பீடு'),
-        'picture' => tr('Picture match', 'படப் பொருத்தம்'),
-        'drill' => tr('Tricky sounds', 'கடினமான ஒலிகள்'),
-        _ => c,
-      };
+  /// Same names as the Practice tab, so "By exercise" matches the tiles.
+  static String _catName(String c) {
+    for (final k in PracticeKind.values) {
+      if (k.id == c) return k.title;
+    }
+    return switch (c) {
+      'picture' => tr('Picture match', 'படப் பொருத்தம்'),
+      _ => c,
+    };
+  }
 }
 
 class _SessionRow extends StatelessWidget {
   const _SessionRow({required this.s});
   final SessionRecord s;
+
+  static String _helper(String? name) => name?.isNotEmpty == true
+      ? tr('with $name', '$name உடன்')
+      : tr('with a helper', 'உதவியாளருடன்');
 
   @override
   Widget build(BuildContext context) {
@@ -255,8 +259,9 @@ class _SessionRow extends StatelessWidget {
                   children: [
                     Text(s.title, style: t.titleMedium),
                     Text(
-                      '${DateFormat('d MMM, h:mm a').format(s.createdAt)} · ${s.itemCount} items'
-                      '${s.assisted ? ' · with ${s.helperName?.isNotEmpty == true ? s.helperName : 'helper'}' : ''}',
+                      '${DateFormat('d MMM, h:mm a', appDateLocale).format(s.createdAt)} · '
+                      '${tr('${s.itemCount} items', '${s.itemCount} கேள்விகள்')}'
+                      '${s.assisted ? ' · ${_helper(s.helperName)}' : ''}',
                       style: t.bodySmall,
                     ),
                   ],

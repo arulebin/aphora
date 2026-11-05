@@ -14,6 +14,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 /// Build with `--dart-define=USE_FIREBASE_EMULATOR=true` to run against the
 /// local Firebase emulators (end-to-end tests). Over USB, `adb reverse` maps
@@ -31,6 +32,8 @@ Future<void> main() async {
     FirebaseFirestore.instance
         .useFirestoreEmulator('127.0.0.1', 8080, automaticHostMapping: false);
   }
+  // Tamil month/weekday names for DateFormat(…, appDateLocale).
+  await initializeDateFormatting();
   await ComfortSettings.instance.load();
   Locator.setUpServices();
 

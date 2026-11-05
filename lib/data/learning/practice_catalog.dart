@@ -51,7 +51,7 @@ extension PracticeKindInfo on PracticeKind {
       };
 
   IconData get icon => switch (this) {
-        PracticeKind.letters => Icons.abc_rounded,
+        PracticeKind.letters => Icons.spatial_audio_off_rounded,
         PracticeKind.words => Icons.image_rounded,
         PracticeKind.naming => Icons.image_search_rounded,
         PracticeKind.sentences => Icons.forum_rounded,

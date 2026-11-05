@@ -56,7 +56,7 @@ class _MainNavigationState extends State<MainNavigation> {
           NavigationDestination(
             icon: const Icon(Icons.insights_outlined),
             selectedIcon: const Icon(Icons.insights_rounded),
-            label: tr('Progress', 'முன்னேற்றம்'),
+            label: tr('Progress', 'வளர்ச்சி'),
           ),
           NavigationDestination(
             icon: const Icon(Icons.medical_services_outlined),

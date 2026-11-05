@@ -95,7 +95,7 @@ class _HomePageState extends State<HomePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        DateFormat('EEEE, d MMMM').format(DateTime.now()),
+                        DateFormat('EEEE, d MMMM', appDateLocale).format(DateTime.now()),
                         style: t.bodyMedium,
                       ),
                       const Gap(AphSpace.xxs),
@@ -163,8 +163,8 @@ class _HomePageState extends State<HomePage> {
                 icon: Icons.assignment_rounded,
                 title: tr('Start with a speech check-up', 'பேச்சு மதிப்பீட்டுடன் தொடங்குங்கள்'),
                 subtitle: tr(
-                  '10 minutes. We use it to choose the right exercises for you.',
-                  '10 நிமிடம். உங்களுக்கு ஏற்ற பயிற்சிகளைத் தேர்ந்தெடுக்க.',
+                  'About ${PracticeKind.assessment.minutes} minutes. It helps us choose the right exercises for your child.',
+                  'சுமார் ${PracticeKind.assessment.minutes} நிமிடம். உங்கள் குழந்தைக்கு ஏற்ற பயிற்சிகளைத் தேர்ந்தெடுக்க உதவும்.',
                 ),
                 color: AphColors.accent,
                 softColor: AphColors.accentSoft,
@@ -274,13 +274,20 @@ class _WeekCard extends StatelessWidget {
   const _WeekCard({required this.user});
   final UserModel? user;
 
+  /// Short weekday under each bar. Tamil uses the narrow form (ஞா, தி, செ…)
+  /// because cutting code units would split a letter from its vowel sign;
+  /// English keeps two letters (Mo, Tu) so Tue/Thu stay distinct.
+  static String _dayLabel(DateTime d) => appDateLocale == 'ta'
+      ? DateFormat('EEEEE', 'ta').format(d)
+      : DateFormat('E', 'en').format(d).characters.take(2).toString();
+
   @override
   Widget build(BuildContext context) {
     final counts = user?.recentActivityCounts(days: 7) ?? List.filled(7, 0);
     final now = DateTime.now();
     final labels = [
       for (var i = 6; i >= 0; i--)
-        DateFormat('E').format(now.subtract(Duration(days: i))).substring(0, 2),
+        _dayLabel(now.subtract(Duration(days: i))),
     ];
     return AphCard(
       child: Column(

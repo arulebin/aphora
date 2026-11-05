@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:aphora/data/learning/letter_training_data.dart';
 import 'package:aphora/data/learning/practice_catalog.dart';
 import 'package:aphora/data/models/practice_record.dart';
 import 'package:aphora/logic/comfort_settings.dart';
@@ -211,7 +212,9 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
       score: (best.similarity - penalty).clamp(0, 100).toDouble(),
       spoken: spoken,
       method: method,
-      tricky: best.similarity >= 85 ? const [] : fromTarget.mispronouncedLetters,
+      tricky: best.similarity >= 85
+          ? const []
+          : fromTarget.mispronouncedLetters.map(displayLetter).toList(),
     ));
   }
 
@@ -400,8 +403,8 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
         const Gap(AphSpace.lg),
         Text(
           name.isEmpty
-              ? tr('Hand the phone to the patient', 'தொலைபேசியை நோயாளியிடம் கொடுங்கள்')
-              : tr('Hand the phone to $name', 'தொலைபேசியை $name இடம் கொடுங்கள்'),
+              ? tr('Practise together with your child', 'குழந்தையுடன் சேர்ந்து பயிற்சி செய்யுங்கள்')
+              : tr('Practise together with $name', '$name உடன் சேர்ந்து பயிற்சி செய்யுங்கள்'),
           style: t.headlineMedium,
           textAlign: TextAlign.center,
         ),
@@ -410,7 +413,8 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
           tr(
             'Sit beside them. Let them try first — help only if they ask, or after two tries. '
                 '${_items.length} items, about ${widget.kind.minutes} minutes.',
-            'அருகில் அமருங்கள். முதலில் அவர்களே முயலட்டும் — இரண்டு முயற்சிகளுக்குப் பிறகே உதவுங்கள்.',
+            'அருகில் அமருங்கள். முதலில் குழந்தையே முயலட்டும் — கேட்டால் அல்லது இரண்டு முயற்சிகளுக்குப் பிறகே உதவுங்கள். '
+                '${_items.length} கேள்விகள், சுமார் ${widget.kind.minutes} நிமிடம்.',
           ),
           style: t.bodyLarge,
           textAlign: TextAlign.center,
@@ -620,8 +624,8 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
           _best.isEmpty
               ? tr('No answers this time — that’s okay.', 'இந்த முறை பதில்கள் இல்லை — பரவாயில்லை.')
               : tr(
-                  '${_best.length} of ${_items.length} answered. Every try helps your brain rebuild these words.',
-                  '${_items.length} இல் ${_best.length} பதிலளித்தீர்கள். ஒவ்வொரு முயற்சியும் உதவுகிறது.',
+                  '${_best.length} of ${_items.length} answered. Every try counts — well done for practising together!',
+                  '${_items.length} இல் ${_best.length} பதில்கள். ஒவ்வொரு முயற்சியும் முக்கியம் — சேர்ந்து பயிற்சி செய்ததற்கு பாராட்டுகள்!',
                 ),
           textAlign: TextAlign.center,
           style: t.bodyLarge,
@@ -636,11 +640,11 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
                   'Begin with letter sounds to build a strong base.',
                   'வலுவான அடித்தளத்திற்கு எழுத்து ஒலிகளுடன் தொடங்குங்கள்.'),
               'words' => tr(
-                  'You are ready for single words with pictures.',
-                  'படங்களுடன் சொற்களுக்கு நீங்கள் தயார்.'),
+                  'Your child is ready for single words with pictures.',
+                  'படங்களுடன் தனிச் சொற்களுக்கு உங்கள் குழந்தை தயார்.'),
               _ => tr(
-                  'You are ready for everyday sentences.',
-                  'அன்றாட வாக்கியங்களுக்கு நீங்கள் தயார்.'),
+                  'Your child is ready for short everyday sentences.',
+                  'சிறு அன்றாட வாக்கியங்களுக்கு உங்கள் குழந்தை தயார்.'),
             },
           ),
         ],

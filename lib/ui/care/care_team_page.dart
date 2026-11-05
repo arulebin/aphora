@@ -115,8 +115,8 @@ class _CareTeamPageState extends State<CareTeamPage> {
       if (mounted) {
         showAphSnack(
           context,
-          tr('Requested ${DateFormat('EEE d MMM, h:mm a').format(when)}. Your therapist will confirm.',
-              '${DateFormat('d MMM, h:mm a').format(when)} கோரப்பட்டது.'),
+          tr('Requested ${DateFormat('EEE d MMM, h:mm a', appDateLocale).format(when)}. Your therapist will confirm.',
+              '${DateFormat('d MMM, h:mm a', appDateLocale).format(when)} கோரப்பட்டது.'),
           tone: FeedbackTone.success,
         );
       }
@@ -160,11 +160,13 @@ class _CareTeamPageState extends State<CareTeamPage> {
   List<Widget> _unlinked(BuildContext context) {
     final t = Theme.of(context).textTheme;
     return [
-      const EmptyState(
+      EmptyState(
         icon: Icons.handshake_rounded,
-        title: 'Connect with your therapist',
-        message:
-            'Your speech therapist can follow your practice, leave notes, and meet you on video.',
+        title: tr('Connect with your therapist',
+            'உங்கள் சிகிச்சையாளருடன் இணையுங்கள்'),
+        message: tr(
+            'Your child’s speech therapist can follow their practice, leave you notes, and meet you on video.',
+            'உங்கள் குழந்தையின் பேச்சு சிகிச்சையாளர் பயிற்சியைப் பார்க்கலாம், உங்களுக்குக் குறிப்புகள் எழுதலாம், வீடியோவில் சந்திக்கலாம்.'),
       ),
       AphCard(
         child: Column(
@@ -326,12 +328,12 @@ class _CareTeamPageState extends State<CareTeamPage> {
                   padding: const EdgeInsets.only(bottom: AphSpace.sm),
                   child: BookingTile(
                     booking: b,
-                    title: DateFormat('EEEE d MMMM').format(b.dateTime),
+                    title: DateFormat('EEEE d MMMM', appDateLocale).format(b.dateTime),
                     onCancel: () async {
                       final ok = await confirmDialog(
                         context,
                         title: tr('Cancel this session?', 'இந்த அமர்வை ரத்து செய்யவா?'),
-                        message: DateFormat('EEE d MMM, h:mm a').format(b.dateTime),
+                        message: DateFormat('EEE d MMM, h:mm a', appDateLocale).format(b.dateTime),
                         confirm: tr('Cancel session', 'ரத்து செய்'),
                         cancel: tr('Keep', 'வைத்திரு'),
                         destructive: true,
@@ -413,9 +415,9 @@ class BookingTile extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(DateFormat('d').format(booking.dateTime),
+                    Text(DateFormat('d', appDateLocale).format(booking.dateTime),
                         style: t.titleLarge?.copyWith(color: AphColors.primary, height: 1)),
-                    Text(DateFormat('MMM').format(booking.dateTime),
+                    Text(DateFormat('MMM', appDateLocale).format(booking.dateTime),
                         style: t.labelSmall?.copyWith(color: AphColors.primary)),
                   ],
                 ),
@@ -426,7 +428,7 @@ class BookingTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title, style: t.titleMedium),
-                    Text(DateFormat('h:mm a').format(booking.dateTime),
+                    Text(DateFormat('h:mm a', appDateLocale).format(booking.dateTime),
                         style: t.bodyMedium),
                     const Gap(AphSpace.xxs),
                     StatusPill(label: label, color: color, soft: soft, icon: icon),
@@ -444,7 +446,7 @@ class BookingTile extends StatelessWidget {
                 ...?actions,
                 if (onCancel != null)
                   AphButton.ghost(
-                    label: 'Cancel',
+                    label: tr('Cancel', 'ரத்து செய்'),
                     icon: Icons.close_rounded,
                     onPressed: onCancel,
                   ),

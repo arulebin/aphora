@@ -167,6 +167,11 @@ class LanguageService {
 String tr(String english, String tamil) =>
     LanguageService.currentLanguage == Language.tamil ? tamil : english;
 
+/// `intl` locale for dates in the current app language. Needs
+/// `initializeDateFormatting()` (called in `main`) for the Tamil symbols.
+String get appDateLocale =>
+    LanguageService.currentLanguage == Language.tamil ? 'ta' : 'en';
+
 /// BCP-47 code for TTS/STT in the current app language.
 String get appSpeechLocale =>
     LanguageService.currentLanguage == Language.tamil ? 'ta-IN' : 'en-IN';

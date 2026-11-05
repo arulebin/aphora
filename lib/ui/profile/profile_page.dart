@@ -1,3 +1,4 @@
+import 'package:aphora/data/learning/child_profile.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
@@ -7,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 /// "Me" tab: profile details, comfort settings, sign out.
-/// (Previously a linked patient had no way to sign out at all.)
+/// (Previously a linked parent had no way to sign out at all.)
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
@@ -48,7 +49,7 @@ class ProfilePage extends StatelessWidget {
               ),
             ),
             if (user != null) ...[
-              SectionHeader(tr('About me', 'என்னைப் பற்றி')),
+              SectionHeader(tr('About your child', 'உங்கள் குழந்தையைப் பற்றி')),
               AphCard(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AphSpace.md,
@@ -58,13 +59,13 @@ class ProfilePage extends StatelessWidget {
                   children: [
                     _Info(tr('Age', 'வயது'), user.age > 0 ? '${user.age}' : '—'),
                     const Divider(),
-                    _Info(tr('Gender', 'பாலினம்'), user.gender.isEmpty ? '—' : user.gender),
+                    _Info(tr('Child', 'குழந்தை'), ChildProfile.gender(user.gender)),
                     const Divider(),
-                    _Info(tr('Aphasia type', 'அஃபேசியா வகை'),
-                        user.aphasiaType.isEmpty ? tr('Not sure', 'தெரியவில்லை') : user.aphasiaType),
+                    _Info(tr('Main worry', 'முக்கியக் கவலை'),
+                        ChildProfile.concern(user.aphasiaType)),
                     const Divider(),
-                    _Info(tr('Severity', 'தீவிரம்'),
-                        user.severityLevel.isEmpty ? '—' : user.severityLevel),
+                    _Info(tr('Speech clarity', 'பேச்சுத் தெளிவு'),
+                        ChildProfile.clarity(user.severityLevel)),
                     const Divider(),
                     _Info(
                       tr('Check-up score', 'மதிப்பீட்டு மதிப்பெண்'),
@@ -96,7 +97,8 @@ class ProfilePage extends StatelessWidget {
             ),
             const Gap(AphSpace.md),
             Text(
-              'Vernacura · speech practice between therapy visits',
+              tr('Vernacura · everyday speech practice at home',
+                  'வெர்னகுரா · வீட்டிலேயே தினமும் பேச்சுப் பயிற்சி'),
               textAlign: TextAlign.center,
               style: t.bodySmall,
             ),

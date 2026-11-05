@@ -134,8 +134,8 @@ class ComfortSettingsSection extends StatelessWidget {
             SectionHeader(
               tr('Helper', 'உதவியாளர்'),
               subtitle: tr(
-                'For a family member or community health volunteer who practises with the patient.',
-                'நோயாளியுடன் பயிற்சி செய்யும் குடும்பத்தினர் அல்லது சுகாதாரத் தன்னார்வலருக்கு.',
+                'For the parent, grandparent or volunteer who practises with the child.',
+                'குழந்தையுடன் பயிற்சி செய்யும் பெற்றோர், தாத்தா பாட்டி அல்லது தன்னார்வலருக்கு.',
               ),
             ),
             AphCard(

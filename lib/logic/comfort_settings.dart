@@ -36,7 +36,7 @@ class ComfortSettings {
   final listenMaxSeconds = ValueNotifier<int>(20);
 
   /// Caregiver / community-health-volunteer assisted mode: adds a
-  /// "hand the phone to the patient" step and a session log at the end.
+  /// "practise together" hand-over step and a session log at the end.
   final assistedMode = ValueNotifier<bool>(false);
 
   /// Name of the helper running assisted sessions on this device.

@@ -930,10 +930,15 @@ class _ChoiceChip extends StatelessWidget {
                     color: selected ? AphColors.primary : AphColors.inkMuted,
                   ),
                   const SizedBox(width: AphSpace.xs),
-                  Text(
-                    label,
-                    style: t.labelLarge?.copyWith(
-                      color: selected ? AphColors.primaryPressed : AphColors.ink,
+                  // Flexible: long answers ("Started talking late", or
+                  // Tamil at large text) wrap inside the chip instead of
+                  // overflowing the screen.
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: t.labelLarge?.copyWith(
+                        color: selected ? AphColors.primaryPressed : AphColors.ink,
+                      ),
                     ),
                   ),
                 ],
@@ -1116,6 +1121,14 @@ class _MicButtonState extends State<MicButton>
       MicState.listening => widget.listeningLabel,
       MicState.processing => widget.processingLabel,
     };
+    // The round button and its caption ("Tap and speak") do the same thing:
+    // children and parents tap the words as often as the circle.
+    final VoidCallback? onTap = widget.onPressed == null
+        ? null
+        : () {
+            HapticFeedback.mediumImpact();
+            widget.onPressed!();
+          };
 
     return Semantics(
       button: true,
@@ -1123,6 +1136,7 @@ class _MicButtonState extends State<MicButton>
       label: label,
       liveRegion: true,
       excludeSemantics: true,
+      onTap: onTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1150,12 +1164,7 @@ class _MicButtonState extends State<MicButton>
                   elevation: 0,
                   child: InkWell(
                     customBorder: const CircleBorder(),
-                    onTap: widget.onPressed == null
-                        ? null
-                        : () {
-                            HapticFeedback.mediumImpact();
-                            widget.onPressed!();
-                          },
+                    onTap: onTap,
                     child: SizedBox(
                       width: AphSize.micButton,
                       height: AphSize.micButton,
@@ -1185,12 +1194,22 @@ class _MicButtonState extends State<MicButton>
               ),
             ),
           ),
-          Text(
-            label,
-            style: t.titleMedium?.copyWith(
-              color: listening ? AphColors.danger : AphColors.ink,
+          InkWell(
+            borderRadius: BorderRadius.circular(AphRadius.md),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AphSpace.md,
+                vertical: AphSpace.xs,
+              ),
+              child: Text(
+                label,
+                style: t.titleMedium?.copyWith(
+                  color: listening ? AphColors.danger : AphColors.ink,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
-            textAlign: TextAlign.center,
           ),
         ],
       ),

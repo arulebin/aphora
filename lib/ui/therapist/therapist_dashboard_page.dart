@@ -1,3 +1,4 @@
+import 'package:aphora/data/learning/child_profile.dart';
 import 'package:aphora/data/models/booking_model.dart';
 import 'package:aphora/data/models/therapist_model.dart';
 import 'package:aphora/data/models/usermodel.dart';
@@ -90,7 +91,7 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Your patient code', style: t.titleSmall),
+                    Text('Your code for families', style: t.titleSmall),
                     const Gap(AphSpace.xxs),
                     SelectableText(
                       th.code,
@@ -99,7 +100,7 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
                         letterSpacing: 4,
                       ),
                     ),
-                    Text('Patients enter this in their Care team tab.',
+                    Text('Parents enter this in the Care team tab.',
                         style: t.bodySmall),
                   ],
                 ),
@@ -171,7 +172,7 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
             );
           },
         ),
-        SectionHeader('Patients'),
+        SectionHeader('Children'),
         FutureBuilder<List<UserModel>>(
           future: _patients,
           builder: (context, snap) {
@@ -186,8 +187,8 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
             if (patients.isEmpty) {
               return const EmptyState(
                 icon: Icons.groups_rounded,
-                title: 'No linked patients yet',
-                message: 'Share your code. Patients appear here as soon as they link.',
+                title: 'No linked children yet',
+                message: 'Share your code. Children appear here as soon as a parent links.',
               );
             }
             return Column(
@@ -252,8 +253,8 @@ class _PatientTile extends StatelessWidget {
               children: [
                 Text(patient.name, style: t.titleMedium),
                 Text(
-                  '${patient.aphasiaType.isEmpty ? 'Aphasia' : patient.aphasiaType} · '
-                  '${patient.severityLevel.isEmpty ? '—' : patient.severityLevel} · '
+                  '${ChildProfile.concern(patient.aphasiaType)} · '
+                  '${ChildProfile.clarity(patient.severityLevel)} · '
                   'active $active',
                   style: t.bodySmall,
                 ),
