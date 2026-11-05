@@ -24,6 +24,7 @@ String heard = '';
 
 const patientPhone = '9000000201';
 const patientPassword = 'kid123';
+const adultPhone = '9000000202';
 const therapistPhone = '9000000301';
 const therapistPassword = 'ther123';
 
@@ -319,6 +320,50 @@ void main() {
     await d.tap(find.text('Unlink').last, why: 'confirm unlink');
     await d.wait(find.text('Link therapist'), why: 'unlinked');
     await d.shot('care_unlinked_again');
+
+    // ── Adult: "Myself" → "A stroke" lands on the aphasia pack ───────
+    await d.tab('Me');
+    await d.tap(find.widgetWithText(AphButton, 'Sign out'), why: 'Sign out (parent)');
+    await d.tap(find.text('Sign out').last, why: 'confirm sign out (parent)');
+    await d.wait(find.text('Welcome back'), why: 'login before adult sign-up');
+    await d.tapText('Create a new account');
+    await d.wait(find.text('Your mobile number'), why: 'adult sign-up step 1');
+    await d.typeAt(0, adultPhone);
+    await d.typeAt(1, patientPassword);
+    await d.typeAt(2, patientPassword);
+    await d.tap(find.widgetWithText(AphButton, 'Continue'), why: 'adult Continue');
+    await d.wait(find.text('Who is this for?'), why: 'adult who question');
+    await d.tapText('Myself');
+    await d.wait(find.text('Your name'), why: 'adult wording on step 2');
+    await d.typeAt(0, 'Ravi');
+    await d.typeAt(1, '64');
+    await d.tapText('Man');
+    await d.tap(find.byKey(const Key('parent-consent')), why: 'adult consent');
+    await d.tap(find.widgetWithText(AphButton, 'Create account'), why: 'adult Create account');
+    await d.wait(find.text('A few questions'), why: 'adult questionnaire', seconds: 30);
+    await d.answer('A stroke');
+    await d.answer('More than a year');
+    await d.answer('No'); // nothing new or sudden
+    await d.answer('Finding the right words, or understanding what others say');
+    await d.answer('Only short, simple sentences');
+    await d.answer('Possible, with effort');
+    await d.answer('Only some words come out');
+    await d.answer('With gestures or pointing');
+    await d.answer('Harder than before');
+    await d.answer('No', next: 'See the result'); // no coughing or choking
+    await d.wait(find.text('Speech after a stroke'), why: 'aphasia pack on the result');
+    await d.wait(find.text('Level 2 · words'), why: 'adult start level');
+    expect(find.text('Your exercises are being prepared'), findsNothing);
+    await d.shot('adult_intake_result');
+    await d.tap(find.widgetWithText(AphButton, 'Save and continue'), why: 'save adult intake');
+    await d.wait(find.text('Today'), why: 'adult Today', seconds: 30);
+    await d.wait(find.text('Start: Listen and repeat'), why: 'adult level-2 plan');
+    await d.shot('adult_today');
+    await d.tab('Practice');
+    await d.wait(find.text('Familiar sequences'), why: 'aphasia hub');
+    await d.wait(find.text('Listen and point'), why: 'adult picture match tile');
+    expect(find.text('Little sentences'), findsNothing, reason: "no children's exercises");
+    await d.shot('adult_practice_hub');
 
     if (d.notes.isNotEmpty) {
       // ignore: avoid_print
