@@ -16,7 +16,7 @@ import 'package:aphora/logic/language_service.dart';
 // stored answers can always be read against the wording that produced them.
 
 /// Stored with every completed intake.
-const intakeVersion = 'vernacura-intake-2026-11-05';
+const intakeVersion = 'vernacura-intake-2026-11-06';
 
 /// Answers so far: question id → option value. Two hidden inputs may also be
 /// present: `age` (years, from sign-up/profile) and `name`.
@@ -310,6 +310,22 @@ abstract final class IntakeQuestionnaire {
       options: [_no, _yes],
     ),
     IntakeQuestion(
+      id: 'a_kind',
+      showIf: isStroke,
+      summaryLabel: 'Main kind of speech difficulty',
+      prompt: L('Since the stroke, what is the main difficulty with speech?',
+          'பக்கவாதத்துக்குப் பிறகு பேச்சில் முக்கியச் சிரமம் என்ன?'),
+      helper: L('Choose the closest one.', 'நெருக்கமான ஒன்றைத் தேர்ந்தெடுங்கள்.'),
+      options: [
+        IntakeOption('words', L('Finding the right words, or understanding what others say',
+            'சரியான சொல் வராதது, அல்லது மற்றவர்கள் சொல்வது புரியாதது'), emoji: '💬'),
+        IntakeOption('slurred', L('The words are right, but speech sounds slurred or unclear',
+            'சொற்கள் சரிதான், ஆனால் பேச்சு குழறுகிறது / தெளிவில்லை'), emoji: '🗣️'),
+        IntakeOption('both', L('Both', 'இரண்டும்'), emoji: '➕'),
+        _unsure,
+      ],
+    ),
+    IntakeQuestion(
       id: 'a_understand',
       showIf: isStroke,
       summaryLabel: 'Understands everyday talk',
@@ -546,6 +562,10 @@ class RedFlag {
       'Radiotherapy is still going on and the mouth may be sore. Check with the cancer care team before starting.',
       'கதிர்வீச்சு சிகிச்சை இன்னும் நடக்கிறது; வாய் புண்ணாக இருக்கலாம். தொடங்கும் முன் புற்றுநோய் சிகிச்சைக் குழுவிடம் கேளுங்கள்.',
     )),
+    RedFlag('dysarthria_assess', RedFlagLevel.referral, L(
+      'Slurred or unclear speech with the right words is often weakness of the speech muscles (dysarthria), which needs its own therapy. Please ask a speech therapist to assess it; meanwhile practise speaking slowly and clearly.',
+      'சொற்கள் சரியாக இருந்தும் பேச்சு குழறுவது பெரும்பாலும் பேச்சுத் தசைகளின் பலவீனம் (டிசார்த்ரியா); அதற்குத் தனிச் சிகிச்சை தேவை. பேச்சு சிகிச்சையாளரிடம் மதிப்பீடு செய்யச் சொல்லுங்கள்; அதுவரை மெதுவாகவும் தெளிவாகவும் பேசிப் பயிற்சி செய்யுங்கள்.',
+    )),
     RedFlag('hearing_test', RedFlagLevel.referral, L(
       'Your child does not always respond to sounds. Please get a hearing test — hearing affects speech.',
       'குழந்தை ஒலிகளுக்கு எப்போதும் திரும்புவதில்லை. செவித்திறன் பரிசோதனை செய்யுங்கள் — கேட்கும் திறன் பேச்சைப் பாதிக்கும்.',
@@ -606,6 +626,7 @@ class FocusArea {
     FocusArea('clarity', L('Making words clearer', 'சொற்களைத் தெளிவாகச் சொல்லுதல்'), 'words'),
     FocusArea('phone', L('Being understood by others and on the phone', 'மற்றவர்களுக்கும் தொலைபேசியிலும் புரியும்படி பேசுதல்'), 'sentences'),
     FocusArea('conversation', L('Everyday conversation', 'அன்றாட உரையாடல்'), 'sentences'),
+    FocusArea('clear_speech', L('Slow, clear speech', 'மெதுவான, தெளிவான பேச்சு'), 'clearSpeech'),
     FocusArea('general', L('General speech practice', 'பொதுப் பேச்சுப் பயிற்சி'), 'words'),
   ];
 

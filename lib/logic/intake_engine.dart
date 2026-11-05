@@ -176,12 +176,20 @@ abstract final class IntakeEngine {
     final total = understand + naming + repeat + needs; // 0–10
     final level = total <= 3 ? 3 : total <= 6 ? 2 : 1;
 
+    // Word-finding / understanding (aphasia) vs slurred speech with the
+    // right words (dysarthria). Both use the aphasia pack for now;
+    // slurred speech adds the clear-speech focus and an assessment referral.
+    final kind = a['a_kind'];
+    final slurred = kind == 'slurred' || kind == 'both';
+
     final focus = <String>[
+      if (kind == 'slurred') 'clear_speech',
       if (needs >= 1) 'needs',
       if (understand >= 2) 'understanding',
       if (naming >= 1) 'naming',
       if (repeat >= 1) 'repetition',
       if (a['a_read'] == 'some' || a['a_read'] == 'no') 'reading',
+      if (kind == 'both') 'clear_speech',
       'naming',
       'conversation',
     ];
@@ -191,6 +199,7 @@ abstract final class IntakeEngine {
       if (a['a_new'] == 'yes') 'emergency_now',
       if (a['a_when'] == 'lt2w' && followup != 'yes') 'stroke_followup',
       if (a['swallow'] == 'sometimes' || a['swallow'] == 'often') 'swallow_check',
+      if (slurred) 'dysarthria_assess',
     ];
 
     return IntakeResult(
@@ -346,6 +355,15 @@ class TemplateIntakeSummarizer implements IntakeSummarizer {
       ..write(', answered by $who on $date (questionnaire $intakeVersion). ')
       ..write('Pack: ${result.condition.therapistLabel}. ')
       ..write('Screening answers only, not a diagnosis.\n');
+    if (isStroke(answers)) {
+      switch (answers['a_kind']) {
+        case 'slurred':
+          b.write('Note: possible dysarthria — needs assessment. '
+              'Aphasia pack used for now, with a clear-speech focus.\n');
+        case 'both':
+          b.write('Note: possible aphasia with dysarthria — needs assessment.\n');
+      }
+    }
     for (final q in IntakeEngine.visible(answers)) {
       if (q.id == 'who') continue;
       final o = q.option(answers[q.id]);

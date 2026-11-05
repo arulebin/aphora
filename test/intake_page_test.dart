@@ -76,6 +76,7 @@ void main() {
     await answer(tester, 'A stroke');
     await answer(tester, 'More than a year');
     await answer(tester, 'Yes'); // new or sudden symptoms
+    await answer(tester, 'Both'); // word-finding and slurred speech
     await answer(tester, 'Understood well');
     await answer(tester, 'Easy');
     await answer(tester, 'Easy');
@@ -85,6 +86,11 @@ void main() {
 
     expect(find.text('Please do this first'), findsOneWidget);
     expect(find.textContaining('Call 108'), findsOneWidget);
+    expect(find.text('Please do this first'), findsOneWidget);
+    expect(find.textContaining('(dysarthria)'), findsOneWidget,
+        reason: 'slurred speech → assessment referral');
+    await tester.scrollUntilVisible(find.textContaining('not a diagnosis'), 300,
+        scrollable: find.byType(Scrollable).first);
     expect(find.text('Your exercises are being prepared'), findsOneWidget);
   });
 }

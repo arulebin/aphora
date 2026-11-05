@@ -26,6 +26,7 @@ Answers strokeMild() => {
       'event': 'stroke',
       'a_when': '3to12m',
       'a_new': 'no',
+      'a_kind': 'words',
       'a_understand': 'well',
       'a_naming': 'effort',
       'a_repeat': 'easy',
@@ -226,6 +227,65 @@ void main() {
       expect(IntakeEngine.evaluate({...recent, 'a_followup': 'unsure'}).redFlags,
           contains('stroke_followup'));
       expect(IntakeEngine.evaluate({...recent, 'a_followup': 'yes'}).redFlags, isEmpty);
+    });
+
+    test('stroke asks word-finding vs slurred speech, after the safety question', () {
+      final q = ids(strokeMild());
+      expect(q, contains('a_kind'));
+      expect(q.indexOf('a_kind'), greaterThan(q.indexOf('a_new')));
+      expect(q.indexOf('a_kind'), lessThan(q.indexOf('a_understand')));
+      expect(ids({'who': 'child'}), isNot(contains('a_kind')));
+      expect(ids(mouthOk()), isNot(contains('a_kind')));
+    });
+
+    test('word-finding problems → aphasia pack, no dysarthria referral', () {
+      final r = IntakeEngine.evaluate(strokeMild());
+      expect(r.condition, Condition.adultAphasia);
+      expect(r.focus, isNot(contains('clear_speech')));
+      expect(r.redFlags, isNot(contains('dysarthria_assess')));
+    });
+
+    test('slurred speech only → aphasia pack, clear speech first, assessment referral', () {
+      final r = IntakeEngine.evaluate({...strokeMild(), 'a_kind': 'slurred'});
+      expect(r.condition, Condition.adultAphasia);
+      expect(r.focus.first, 'clear_speech');
+      expect(r.redFlags, ['dysarthria_assess']);
+      expect(RedFlag.byId('dysarthria_assess')!.level, RedFlagLevel.referral);
+      expect(r.practiceOnHold, isFalse, reason: 'a referral, practice can start');
+      expect(r.startLevel, IntakeEngine.evaluate(strokeMild()).startLevel,
+          reason: 'the level still comes from the language questions');
+    });
+
+    test('both → aphasia pack with clear speech in the focus and the referral', () {
+      final r = IntakeEngine.evaluate({
+        ...strokeMild(),
+        'a_kind': 'both',
+        'a_naming': 'hard',
+      });
+      expect(r.condition, Condition.adultAphasia);
+      expect(r.focus, contains('clear_speech'));
+      expect(r.focus.first, isNot('clear_speech'), reason: 'language comes first');
+      expect(r.redFlags, contains('dysarthria_assess'));
+      expect(FocusArea.byId('clear_speech'), isNotNull);
+    });
+
+    test('not sure → aphasia pack, no referral', () {
+      final r = IntakeEngine.evaluate({...strokeMild(), 'a_kind': unsure});
+      expect(r.condition, Condition.adultAphasia);
+      expect(r.redFlags, isEmpty);
+    });
+
+    test('therapist summary notes possible dysarthria', () {
+      String summary(String kind) => TemplateIntakeSummarizer.build(
+            name: 'Ravi',
+            answers: {...strokeMild(), 'a_kind': kind},
+            result: IntakeEngine.evaluate({...strokeMild(), 'a_kind': kind}),
+            completedAt: DateTime(2026, 11, 6),
+          );
+      expect(summary('slurred'), contains('possible dysarthria — needs assessment'));
+      expect(summary('both'), contains('possible aphasia with dysarthria — needs assessment'));
+      expect(summary('words'), isNot(contains('dysarthria')));
+      expect(summary('slurred'), contains('Main kind of speech difficulty'));
     });
 
     test('coughing or choking → swallow check', () {
