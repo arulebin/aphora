@@ -2,6 +2,7 @@ import 'package:aphora/data/learning/child_profile.dart';
 import 'package:aphora/data/models/practice_record.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/locator.dart';
+import 'package:aphora/logic/practice_rewards.dart';
 import 'package:aphora/ui/design/components.dart';
 import 'package:aphora/ui/progress/progress_page.dart';
 import 'package:aphora/ui/video_call/videocall_page.dart';
@@ -55,7 +56,11 @@ class _PatientDetailPageState extends State<PatientDetailPage> {
       }
     } catch (_) {
       if (mounted) {
-        showAphSnack(context, 'Could not save the note.', tone: FeedbackTone.error);
+        showAphSnack(
+          context,
+          'Could not save the note.',
+          tone: FeedbackTone.error,
+        );
       }
     } finally {
       if (mounted) setState(() => _savingNote = false);
@@ -90,7 +95,8 @@ class _PatientDetailPageState extends State<PatientDetailPage> {
                   StatusPill(label: 'Language: ${p.languagePreference}'),
                   if (p.preAssessmentScore != null)
                     StatusPill(
-                      label: 'Check-up ${p.preAssessmentScore!.round()} '
+                      label:
+                          'Check-up ${p.preAssessmentScore!.round()} '
                           '(${DateFormat('d MMM').format(p.preAssessmentDate ?? p.updatedAt)})',
                       icon: Icons.assignment_rounded,
                       color: AphColors.accent,
@@ -109,7 +115,8 @@ class _PatientDetailPageState extends State<PatientDetailPage> {
                         context,
                         MaterialPageRoute(
                           builder: (_) => VideoCallPage(
-                            channelName: 'aphora_${widget.therapistCode}_${p.uid}',
+                            channelName:
+                                'aphora_${widget.therapistCode}_${p.uid}',
                             peerName: p.name,
                           ),
                         ),
@@ -149,7 +156,10 @@ class _PatientDetailPageState extends State<PatientDetailPage> {
             _future = _load();
           }),
         ),
-        SectionHeader('Recent attempts', subtitle: 'What the app heard, newest first'),
+        SectionHeader(
+          'Recent attempts',
+          subtitle: 'What the app heard, newest first',
+        ),
         FutureBuilder<(List<AttemptRecord>, List<SessionRecord>)>(
           future: _future,
           builder: (context, snap) {
@@ -161,44 +171,62 @@ class _PatientDetailPageState extends State<PatientDetailPage> {
                 title: 'No attempts recorded yet',
               );
             }
-            return AphCard(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AphSpace.md,
-                vertical: AphSpace.xs,
-              ),
-              child: Column(
-                children: [
-                  for (final (i, a) in attempts.indexed) ...[
-                    if (i > 0) const Divider(),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: AphSpace.sm),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(a.target, style: t.titleMedium),
-                                Text(
-                                  'Heard: ${a.spoken.isEmpty ? '—' : a.spoken}',
-                                  style: t.bodyMedium,
-                                ),
-                                Text(
-                                  '${DateFormat('d MMM, h:mm a').format(a.createdAt)} · '
-                                  '${a.method}${a.assisted ? ' · assisted' : ''}',
-                                  style: t.bodySmall,
-                                ),
-                              ],
-                            ),
-                          ),
-                          ScoreBadge(score: a.score),
-                        ],
-                      ),
+            final hints = HintStats.averagePerWord(snap.data!.$1);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (hints != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AphSpace.sm),
+                    child: Text(
+                      'Hints per word (What is this?): ${HintStats.format(hints)} '
+                      '— lower means more independent naming',
+                      style: t.titleSmall,
                     ),
-                  ],
-                ],
-              ),
+                  ),
+                AphCard(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AphSpace.md,
+                    vertical: AphSpace.xs,
+                  ),
+                  child: Column(
+                    children: [
+                      for (final (i, a) in attempts.indexed) ...[
+                        if (i > 0) const Divider(),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: AphSpace.sm,
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(a.target, style: t.titleMedium),
+                                    Text(
+                                      'Heard: ${a.spoken.isEmpty ? '—' : a.spoken}',
+                                      style: t.bodyMedium,
+                                    ),
+                                    Text(
+                                      '${DateFormat('d MMM, h:mm a').format(a.createdAt)} · '
+                                      '${a.method}${a.assisted ? ' · assisted' : ''}'
+                                      '${a.hintsUsed > 0 ? ' · ${a.hintsUsed} hint${a.hintsUsed == 1 ? '' : 's'}' : ''}',
+                                      style: t.bodySmall,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              ScoreBadge(score: a.score),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             );
           },
         ),

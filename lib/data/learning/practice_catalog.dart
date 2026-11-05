@@ -1,5 +1,6 @@
 import 'package:aphora/data/learning/kids_words.dart';
 import 'package:aphora/data/learning/letter_training_data.dart';
+import 'package:aphora/logic/family_voice_store.dart';
 import 'package:aphora/logic/language_service.dart';
 import 'package:flutter/material.dart';
 
@@ -85,6 +86,7 @@ class PracticeItem {
     this.referenceAudio,
     this.hideTarget = false,
     this.semanticCue,
+    this.familyKey,
   });
 
   /// Stable id used in Firestore attempts.
@@ -115,6 +117,14 @@ class PracticeItem {
 
   /// First rung of the cueing ladder: a meaning hint ("It says meow").
   final String? semanticCue;
+
+  /// Overrides [voiceKey] when the same word appears under another id
+  /// (e.g. a Sound check word reuses the parent's recording of that word).
+  final String? familyKey;
+
+  /// Key of the parent's Family Voice recording for this item. Includes the
+  /// language because the Tamil and English words are different recordings.
+  String get voiceKey => familyKey ?? '${id}_${locale.split('-').first}';
 
   /// Second rung: the first sound of the word (phonemic cue). In Tamil one
   /// grapheme is one syllable (யா of யானை); taking two would give away a
@@ -207,23 +217,50 @@ abstract final class PracticeCatalog {
     return pool.take(count).map((w) => _fromKid(w, hide: true)).toList();
   }
 
+  static String _sentenceId(String en) =>
+      'kidsentence_${en.toLowerCase().replaceAll(RegExp(r'[^a-z]+'), '_')}';
+
+  static PracticeItem _sentence((String, List<String>, String) s) {
+    final (ta, spoken, en) = s;
+    return PracticeItem(
+      id: _sentenceId(en),
+      target: _ta ? ta : en,
+      alternates: _ta ? [...spoken, en] : const [],
+      meaning: _ta ? en : null,
+      locale: _locale,
+    );
+  }
+
   static List<PracticeItem> sentences({int count = 8}) {
     final pool = List.of(_kidSentences)..shuffle();
-    return [
-      for (final (ta, spoken, en) in pool.take(count))
-        PracticeItem(
-          id: 'kidsentence_${en.toLowerCase().replaceAll(RegExp(r'[^a-z]+'), '_')}',
-          target: _ta ? ta : en,
-          alternates: _ta ? [...spoken, en] : const [],
-          meaning: _ta ? en : null,
-          locale: _locale,
-        ),
-    ];
+    return pool.take(count).map(_sentence).toList();
+  }
+
+  // ── Family Voice ─────────────────────────────────────────────────────
+
+  /// Everything a parent can record, in a stable order, for the current
+  /// language: the full picture-word bank, the sounds and the sentences.
+  static List<PracticeItem> familyWords() => kidWords.map(_fromKid).toList();
+  static List<PracticeItem> familySounds() => letters(count: 100);
+  static List<PracticeItem> familySentences() =>
+      _kidSentences.map(_sentence).toList();
+
+  /// "Copy the voice": when the parent has recorded words, the child copies
+  /// Amma/Appa's own voice and the server scores against that recording.
+  /// Otherwise the three bundled adult recordings are used.
+  static List<PracticeItem> phonetic({int count = 8, FamilyVoiceStore? store}) {
+    final s = store ?? FamilyVoiceStore.instance;
+    final family = [...familyWords(), ...familySounds(), ...familySentences()]
+        .where((i) => s.has(i.voiceKey))
+        .toList()
+      ..shuffle();
+    if (family.isNotEmpty) return family.take(count).toList();
+    return bundledPhonetic;
   }
 
   /// Items with a bundled fluent-speaker recording. These are scored by
   /// the acoustic server when it is reachable.
-  static List<PracticeItem> phonetic() => const [
+  static const List<PracticeItem> bundledPhonetic = [
         PracticeItem(
           id: 'phonetic_vannakam',
           target: 'வணக்கம்',
@@ -264,6 +301,7 @@ abstract final class PracticeCatalog {
           target: item.target,
           alternates: item.alternates,
           locale: item.locale,
+          familyKey: item.voiceKey,
         ),
       for (final (i, id) in checkWords.indexed)
         PracticeItem(
@@ -273,6 +311,7 @@ abstract final class PracticeCatalog {
           meaning: _ta ? byId[id]!.en : null,
           emoji: byId[id]!.emoji,
           locale: _locale,
+          familyKey: 'kid_${id}_${_locale.split('-').first}',
         ),
       for (final (i, (ta, spoken, en)) in _kidSentences.take(6).indexed)
         PracticeItem(
@@ -281,6 +320,7 @@ abstract final class PracticeCatalog {
           alternates: _ta ? [...spoken, en] : const [],
           meaning: _ta ? en : null,
           locale: _locale,
+          familyKey: '${_sentenceId(en)}_${_locale.split('-').first}',
         ),
     ];
   }
