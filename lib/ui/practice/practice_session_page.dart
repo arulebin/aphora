@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:aphora/data/learning/letter_training_data.dart';
 import 'package:aphora/data/learning/practice_catalog.dart';
 import 'package:aphora/data/models/practice_record.dart';
 import 'package:aphora/logic/comfort_settings.dart';
@@ -211,7 +212,9 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
       score: (best.similarity - penalty).clamp(0, 100).toDouble(),
       spoken: spoken,
       method: method,
-      tricky: best.similarity >= 85 ? const [] : fromTarget.mispronouncedLetters,
+      tricky: best.similarity >= 85
+          ? const []
+          : fromTarget.mispronouncedLetters.map(displayLetter).toList(),
     ));
   }
 
