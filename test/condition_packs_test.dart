@@ -6,6 +6,7 @@ import 'package:aphora/data/learning/kids_words.dart';
 import 'package:aphora/data/learning/packs/aphasia_pack.dart';
 import 'package:aphora/data/learning/packs/condition_packs.dart';
 import 'package:aphora/data/learning/packs/kids_pack.dart';
+import 'package:aphora/data/learning/packs/oral_cancer_pack.dart';
 import 'package:aphora/data/learning/practice_catalog.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/intake_engine.dart';
@@ -60,21 +61,24 @@ void main() {
       expect(ConditionPacks.of(Condition.childSpeechDelay), isA<KidsPack>());
       expect(ConditionPacks.of(Condition.adultAphasia), isA<AphasiaPack>());
       expect(ConditionPacks.of(Condition.unknown), isA<KidsPack>());
-      expect(ConditionPacks.of(Condition.oralCancerRehab), isA<KidsPack>());
+      expect(ConditionPacks.of(Condition.oralCancerRehab), isA<OralCancerPack>());
     });
 
     test('"exercises being prepared" only for a condition without its own pack', () {
       expect(ConditionPacks.contentPending(Condition.adultAphasia), isFalse);
       expect(ConditionPacks.contentPending(Condition.childSpeechDelay), isFalse);
       expect(ConditionPacks.contentPending(Condition.unknown), isFalse);
-      expect(ConditionPacks.contentPending(Condition.oralCancerRehab), isTrue);
+      expect(ConditionPacks.contentPending(Condition.oralCancerRehab), isFalse,
+          reason: 'the oral-cancer pack is integrated');
     });
 
-    test('registering the oral-cancer pack takes over its condition', () {
+    test('register replaces a pack; unregister restores the built-in one', () {
       addTearDown(() => ConditionPacks.unregister(Condition.oralCancerRehab));
       ConditionPacks.register(const _FakeOralPack());
       expect(ConditionPacks.of(Condition.oralCancerRehab), isA<_FakeOralPack>());
       expect(ConditionPacks.contentPending(Condition.oralCancerRehab), isFalse);
+      ConditionPacks.unregister(Condition.oralCancerRehab);
+      expect(ConditionPacks.of(Condition.oralCancerRehab), isA<OralCancerPack>());
       ConditionPacks.unregister(Condition.adultAphasia);
       expect(ConditionPacks.hasPack(Condition.adultAphasia), isTrue,
           reason: 'built-in packs cannot be removed');
@@ -95,13 +99,13 @@ void main() {
       expect(ConditionPacks.childWording(null), isTrue);
     });
 
-    test('an adult whose pack is pending gets the general set, adult wording', () {
+    test('an oral-cancer adult gets the oral pack and adult wording', () {
       final oral = UserModel.fromMap({
         ..._base(),
         'condition': 'oral_cancer_rehab',
         'intake': {'result': {'condition': 'oral_cancer_rehab', 'startLevel': 2}},
       });
-      expect(ConditionPacks.forUser(oral), isA<KidsPack>());
+      expect(ConditionPacks.forUser(oral), isA<OralCancerPack>());
       expect(ConditionPacks.childWording(oral), isFalse);
     });
   });

@@ -2,6 +2,7 @@ import 'package:aphora/data/intake/condition.dart';
 import 'package:aphora/data/learning/packs/aphasia_pack.dart';
 import 'package:aphora/data/learning/packs/condition_pack.dart';
 import 'package:aphora/data/learning/packs/kids_pack.dart';
+import 'package:aphora/data/learning/packs/oral_cancer_pack.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:flutter/foundation.dart';
@@ -16,23 +17,36 @@ export 'package:aphora/data/learning/packs/condition_pack.dart';
 abstract final class ConditionPacks {
   static const kids = KidsPack();
   static const aphasia = AphasiaPack();
+  static const oralCancer = OralCancerPack();
 
-  /// Built-in packs. INTEGRATION POINT for the oral-cancer pack: add
-  /// `Condition.oralCancerRehab: OralCancerPack(),` here (or call
-  /// [register] at start-up). Its "exercises are being prepared" notice
-  /// then disappears by itself ([contentPending]).
+  /// Built-in packs. A new pack is one entry here (or [register] at
+  /// start-up); a condition without one shows "exercises are being
+  /// prepared" ([contentPending]).
   static final Map<Condition, ConditionPack> _packs = {
     Condition.childSpeechDelay: kids,
     Condition.adultAphasia: aphasia,
+    Condition.oralCancerRehab: oralCancer,
   };
+
+  static bool _builtIn(Condition c) =>
+      c == Condition.childSpeechDelay ||
+      c == Condition.adultAphasia ||
+      c == Condition.oralCancerRehab;
 
   /// Adds or replaces the pack for `pack.condition`.
   static void register(ConditionPack pack) => _packs[pack.condition] = pack;
 
+  /// Removes a pack added with [register]; built-in packs are restored.
   @visibleForTesting
   static void unregister(Condition c) {
-    if (c == Condition.childSpeechDelay || c == Condition.adultAphasia) return;
     _packs.remove(c);
+    if (_builtIn(c)) {
+      _packs[c] = switch (c) {
+        Condition.childSpeechDelay => kids,
+        Condition.adultAphasia => aphasia,
+        _ => oralCancer,
+      };
+    }
   }
 
   static bool hasPack(Condition c) => _packs.containsKey(c);
@@ -46,8 +60,9 @@ abstract final class ConditionPacks {
   static bool contentPending(Condition c) =>
       c != Condition.unknown && !hasPack(c);
 
+  /// The person's pack, tailored to them (personal phrases, day, …).
   static ConditionPack forUser(UserModel? user) =>
-      of(user?.activeCondition ?? Condition.unknown);
+      of(user?.activeCondition ?? Condition.unknown).tailorTo(user);
 
   /// Children's wording (parent mode, stars) for this person. Adults whose
   /// pack is still pending get the general set but adult wording.
@@ -67,4 +82,5 @@ abstract final class ConditionPacks {
   static int get currentLevel => _user?.practiceLevel ?? 2;
   static List<String> get currentFocus => _user?.intake?.focus ?? const [];
   static bool get currentChildWording => childWording(_user);
+  static UserModel? get currentUser => _user;
 }

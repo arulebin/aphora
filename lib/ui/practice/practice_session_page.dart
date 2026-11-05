@@ -9,23 +9,31 @@ import 'package:aphora/data/models/practice_record.dart';
 import 'package:aphora/logic/comfort_settings.dart';
 import 'package:aphora/logic/family_voice_store.dart';
 import 'package:aphora/logic/language_service.dart';
+import 'package:aphora/data/models/oral_records.dart';
+import 'package:aphora/logic/baseline_scoring.dart';
 import 'package:aphora/logic/locator.dart';
+import 'package:aphora/logic/self_baseline_feedback.dart';
 import 'package:aphora/logic/practice_rewards.dart';
 import 'package:aphora/logic/speech_service.dart';
 import 'package:aphora/logic/voice_recorder.dart';
 import 'package:aphora/ui/design/components.dart';
 import 'package:aphora/ui/practice/kid_rewards.dart';
+import 'package:aphora/ui/practice/practice_safety.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Opens a practice session. Returns when the person leaves the summary.
+/// Opens a practice session after the pack's safety step (oral-cancer
+/// pack: safety line / care-team confirmation). Returns when the person
+/// leaves the summary, or at once if they did not confirm.
 Future<void> openPractice(
   BuildContext context,
   PracticeKind kind, {
   List<PracticeItem>? items,
-}) {
-  return Navigator.of(context).push(
+}) async {
+  if (!await ensurePracticeSafety(context)) return;
+  if (!context.mounted) return;
+  await Navigator.of(context).push(
     MaterialPageRoute(
       builder: (_) => PracticeSessionPage(kind: kind, items: items),
     ),
@@ -66,8 +74,10 @@ class _Result {
     required this.method,
     this.serverFeedback,
     this.tricky = const [],
+    this.cer,
   });
   final double score;
+  final double? cer;
   final String spoken;
   final String method;
   final String? serverFeedback;
@@ -121,6 +131,33 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
   bool _saved = false;
 
   bool get _isAssessment => widget.kind == PracticeKind.assessment;
+
+  /// Oral-cancer pack: progress against the person's own starting point,
+  /// shown as band messages only.
+  bool get _selfBaseline => _pack.selfBaselineScoring;
+
+  /// A pure measure (monthly clarity check): no hints, no spoken model.
+  bool get _measure => _isAssessment && _pack.checkUpIsMeasure;
+
+  /// Earlier attempts (loaded) plus this session's, for [_selfBaseline].
+  final List<OralAttempt> _history = [];
+  final List<OralAttempt> _sessionAttempts = [];
+  ProgressBand? _band;
+  IntelligibilityResult? _clarity;
+  ProgressBand? _clarityBand;
+
+  Future<void> _loadHistory() async {
+    try {
+      final users = Locator.userDatabaseService;
+      final uid = users.currentUser.value?.uid;
+      if (uid == null) return;
+      final records = await users.getRecentAttempts(uid, limit: 500);
+      if (!mounted) return;
+      // Older attempts first, then anything already said this session.
+      _history.insertAll(0, SelfBaselineFeedback.fromRecords(records)
+          .where((a) => a.at.isBefore(_started)));
+    } catch (_) {/* offline or no services: start from this session */}
+  }
   bool get _assisted => ComfortSettings.instance.assistedMode.value;
   PracticeItem get _item => _items[_index];
   bool get _wordVisible => !_item.hideTarget || _cue >= 3;
@@ -140,13 +177,14 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
   void initState() {
     super.initState();
     _checkServer();
+    if (_selfBaseline) _loadHistory();
     if (_phase == _Phase.prompt) _onItemShown();
   }
 
   /// When the word is on screen and Amma/Appa recorded it, play their
   /// voice straight away (instead of the phone reading the word).
   void _onItemShown() {
-    if (!ComfortSettings.instance.autoReadAloud.value) return;
+    if (!ComfortSettings.instance.autoReadAloud.value || _measure) return;
     if (_item.hideTarget || !_hasFamily(_item)) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _playModel();
@@ -262,6 +300,7 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
         spoken: r.userText ?? '',
         method: 'server',
         serverFeedback: r.feedbackMessage,
+        cer: r.characterErrorRate,
       ));
     } on Exception catch (e) {
       setState(() {
@@ -299,10 +338,26 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
     HapticFeedback.lightImpact();
     final prev = _best[_index];
     final hints = _item.hideTarget ? _cue : 0;
+    if (_selfBaseline) {
+      final a = SelfBaselineFeedback.attempt(
+        itemId: _item.id,
+        at: DateTime.now(),
+        method: r.method,
+        score: r.score,
+        cer: r.cer,
+        transcript: r.spoken,
+      );
+      if (a != null) {
+        _history.add(a);
+        _sessionAttempts.add(a);
+      }
+      _band = SelfBaselineFeedback.bandFor(_item.id, _history);
+    }
     setState(() {
       _mic = MicState.idle;
       _current = r;
-      _newStar = PracticeRewards.isCorrect(r.score) &&
+      _newStar = _child &&
+          PracticeRewards.isCorrect(r.score) &&
           (prev == null || !PracticeRewards.isCorrect(prev.score));
       if (prev == null || r.score > prev.score) _best[_index] = r;
       _trickyAll.addAll(r.tricky);
@@ -314,7 +369,7 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
     });
     // Persist each attempt; failures are non-fatal (offline queue in
     // Firestore will retry).
-    Locator.userDatabaseService
+    _persist(() => Locator.userDatabaseService
         .recordExerciseResult(
           taskId: _item.id,
           accuracy: r.score,
@@ -324,12 +379,21 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
           method: r.method,
           assisted: _assisted,
           hintsUsed: hints,
-        )
-        .catchError((_) => null);
+          cer: r.cer,
+        ));
     final band = ScoreBand.of(r.score);
-    if (ComfortSettings.instance.autoReadAloud.value) {
-      _speech.speakText(_praise(band, r.score));
+    if (ComfortSettings.instance.autoReadAloud.value && !_measure) {
+      _speech.speakText(_selfBaseline && _band != null
+          ? SelfBaselineFeedback.messageFor(_band!, LanguageService.currentLanguage).title
+          : _praise(band, r.score));
     }
+  }
+
+  /// Runs a save in the background; a failure never breaks the session.
+  static void _persist(Future<Object?> Function() save) {
+    try {
+      save().catchError((_) => null);
+    } catch (_) {/* services not set up (widget tests) */}
   }
 
   void _submitTyped() {
@@ -366,13 +430,21 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
         return;
       } catch (_) {/* fall through to TTS */}
     }
-    await _speech.speakText(_item.target, language: _item.locale);
+    // Paced phrases: word by word, with a pause after each.
+    await _speech.speakText(_item.chunks?.join(', ') ?? _item.target,
+        language: _item.locale);
   }
 
   // ── Navigation ───────────────────────────────────────────────────────
 
   void _next() {
     if (_index >= _items.length - 1) {
+      if (_measure) {
+        final language = LanguageService.currentLanguage;
+        _clarity = SelfBaselineFeedback.clarity(_sessionAttempts, _items, language);
+        _clarityBand = SelfBaselineFeedback.clarityBand(
+            ConditionPacks.currentUser?.oralClarityTests ?? const [], _clarity!);
+      }
       setState(() => _phase = _Phase.summary);
       // In assisted mode we wait for the helper's note before saving.
       if (!_assisted) _saveSession();
@@ -420,11 +492,15 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
         note: _note.text.trim().isEmpty ? null : _note.text.trim(),
         createdAt: DateTime.now(),
       ));
-      if (_isAssessment) {
+      if (_isAssessment && _pack.checkUpSetsLevel) {
         await Locator.userDatabaseService.savePreAssessment(
           score: _average,
           recommendedFocus: PracticeCatalog.focusFor(_average),
         );
+      }
+      if (_measure && _clarity != null) {
+        await Locator.userDatabaseService
+            .saveClarityTest(ClarityTest.fromResult(_clarity!, DateTime.now()));
       }
       await ComfortSettings.instance
           .markPlanDone(dayKey(DateTime.now()), widget.kind.id);
@@ -461,6 +537,19 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_items.isEmpty) {
+      return AphScaffold(
+        title: _title,
+        children: [
+          EmptyState(
+            icon: Icons.inbox_rounded,
+            title: tr('Nothing to practise here yet', 'இங்கே இன்னும் பயிற்சி இல்லை'),
+            message: tr('Try another exercise from the Practice tab.',
+                'பயிற்சி தாவலில் வேறு ஒன்றை முயலுங்கள்.'),
+          ),
+        ],
+      );
+    }
     return PopScope(
       canPop: _best.isEmpty || (_phase == _Phase.summary && _saved),
       onPopInvokedWithResult: (didPop, _) async {
@@ -653,6 +742,20 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
           : null,
       children: [
         StepProgress(current: _index + 1, total: _items.length),
+        if (_pack.restCue case final rest?) ...[
+          const Gap(AphSpace.xs),
+          Row(
+            key: const ValueKey('rest_cue'),
+            children: [
+              const Icon(Icons.pan_tool_rounded, size: 18, color: AphColors.warning),
+              const Gap(AphSpace.xs),
+              Expanded(
+                child: Text(rest,
+                    style: t.bodyMedium?.copyWith(color: AphColors.warning)),
+              ),
+            ],
+          ),
+        ],
         const Gap(AphSpace.lg),
         Row(
           children: [
@@ -672,8 +775,9 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
             ),
             ReadAloudButton(
               key: ValueKey('ra_${item.id}_$_cue'),
-              text: _wordVisible && !family
-                  ? '$instruction$spokenPrompt ${item.target}'
+              // A measure never speaks the answer first.
+              text: _wordVisible && !family && !_measure
+                  ? '$instruction$spokenPrompt ${item.chunks?.join(', ') ?? item.target}'
                   : '$instruction$spokenPrompt',
               language: item.locale,
               compact: true,
@@ -691,6 +795,7 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
           familyVoice: family,
           big: kid,
           child: _child,
+          noModel: _measure,
         ),
         if (item.hideTarget && !answered && _cue < 3) ...[
           const Gap(AphSpace.sm),
@@ -779,6 +884,11 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
             correct: PracticeRewards.isCorrect(r.score),
             newStar: _newStar,
           )
+        else if (_selfBaseline)
+          _SelfBaselineCard(
+            key: ValueKey('band_${item.id}_${identityHashCode(r)}'),
+            band: _measure ? null : _band,
+          )
         else ...[
           if (_newStar && _child) ...[
             Center(child: StarBurst(key: ValueKey('burst_${identityHashCode(r)}'), size: 96)),
@@ -813,7 +923,17 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
       ),
       children: [
         const Gap(AphSpace.md),
-        if (_assisted && _child)
+        if (_selfBaseline)
+          _SelfBaselineCard(
+            key: const ValueKey('summary_band'),
+            band: _measure
+                ? _clarityBand
+                : _best.isEmpty
+                    ? null
+                    : BaselineScoring.summarise(_history, since: _started).band,
+            measured: _measure,
+          )
+        else if (_assisted && _child)
           StarsEarned(stars: _stars)
         else ...[
           Center(child: ScoreRing(score: avg, size: 160)),
@@ -839,7 +959,10 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
         Text(
           _best.isEmpty
               ? tr('No answers this time — that’s okay.', 'இந்த முறை பதில்கள் இல்லை — பரவாயில்லை.')
-              : _child
+              : _selfBaseline
+                  ? tr('You practised ${_best.length} items today. Every attempt helps.',
+                      'இன்று ${_best.length} பயிற்சிகள் செய்தீர்கள். ஒவ்வொரு முயற்சியும் உதவும்.')
+                  : _child
                   ? tr(
                       '${_best.length} of ${_items.length} answered. Every try counts — well done for practising together!',
                       '${_items.length} இல் ${_best.length} பதில்கள். ஒவ்வொரு முயற்சியும் முக்கியம் — சேர்ந்து பயிற்சி செய்ததற்கு பாராட்டுகள்!',
@@ -861,7 +984,7 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
             style: t.bodyMedium,
           ),
         ],
-        if (_isAssessment) ...[
+        if (_isAssessment && !_measure) ...[
           const Gap(AphSpace.lg),
           FeedbackBanner(
             tone: FeedbackTone.info,
@@ -909,7 +1032,11 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
                         Expanded(
                           child: Text(_items[e.key].target, style: t.titleMedium),
                         ),
-                        ScoreBadge(score: e.value.score),
+                        if (_selfBaseline)
+                          const Icon(Icons.check_circle_rounded,
+                              color: AphColors.success, semanticLabel: 'Practised')
+                        else
+                          ScoreBadge(score: e.value.score),
                       ],
                     ),
                   ),
@@ -950,10 +1077,14 @@ class _PromptCard extends StatelessWidget {
     this.familyVoice = false,
     this.big = false,
     this.child = true,
+    this.noModel = false,
   });
 
   final PracticeItem item;
   final bool wordVisible;
+
+  /// Measuring: no "Hear it" model.
+  final bool noModel;
   final int cue;
   final VoidCallback onPlay;
 
@@ -1049,7 +1180,13 @@ class _PromptCard extends StatelessWidget {
             ),
             const Gap(AphSpace.md),
           ],
-          if (wordVisible) ...[
+          if (wordVisible && item.chunks != null) ...[
+            PacedWords(key: ValueKey('paced_${item.id}'), words: item.chunks!),
+            if (item.meaning != null) ...[
+              const Gap(AphSpace.xs),
+              Text(item.meaning!, textAlign: TextAlign.center, style: t.bodyLarge),
+            ],
+          ] else if (wordVisible) ...[
             Text(
               item.target,
               textAlign: TextAlign.center,
@@ -1082,7 +1219,9 @@ class _PromptCard extends StatelessWidget {
             ],
           ],
           const Gap(AphSpace.md),
-          if (familyVoice && wordVisible) ...[
+          if (noModel)
+            const SizedBox.shrink()
+          else if (familyVoice && wordVisible) ...[
             StatusPill(
               label: tr('Family voice', 'குடும்பக் குரல்'),
               icon: Icons.favorite_rounded,
@@ -1106,11 +1245,151 @@ class _PromptCard extends StatelessWidget {
             )
           else if (wordVisible)
             ReadAloudButton(
-              text: item.target,
+              text: item.chunks?.join(', ') ?? item.target,
               language: item.locale,
               label: tr('Hear it', 'கேளுங்கள்'),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// "One word at a time": the phrase as separate words; each lights up in
+/// turn with a pause, once, and again on "Show the pace".
+class PacedWords extends StatefulWidget {
+  const PacedWords({super.key, required this.words});
+  final List<String> words;
+
+  /// Time per word (word + pause).
+  static const step = Duration(milliseconds: 1100);
+
+  @override
+  State<PacedWords> createState() => _PacedWordsState();
+}
+
+class _PacedWordsState extends State<PacedWords> {
+  Timer? _timer;
+  int _at = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _start();
+  }
+
+  void _start() {
+    _timer?.cancel();
+    setState(() => _at = 0);
+    _timer = Timer.periodic(PacedWords.step, (t) {
+      if (!mounted) return;
+      setState(() => _at++);
+      if (_at >= widget.words.length) t.cancel();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return Column(
+      children: [
+        Semantics(
+          label: widget.words.join(', '),
+          excludeSemantics: true,
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: AphSpace.xs,
+            runSpacing: AphSpace.xs,
+            children: [
+              for (final (i, w) in widget.words.indexed)
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AphSpace.sm, vertical: AphSpace.xxs),
+                  decoration: BoxDecoration(
+                    color: i == _at ? AphColors.primarySoft : Colors.transparent,
+                    borderRadius: BorderRadius.circular(AphRadius.sm),
+                    border: Border.all(
+                      color: i == _at ? AphColors.primary : AphColors.border,
+                    ),
+                  ),
+                  child: Text(
+                    w,
+                    style: t.headlineMedium?.copyWith(
+                      color: i == _at ? AphColors.primary : AphColors.ink,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        TextButton.icon(
+          onPressed: _start,
+          icon: const Icon(Icons.replay_rounded),
+          label: Text(tr('Show the pace', 'வேகத்தைக் காட்டு')),
+        ),
+      ],
+    );
+  }
+}
+
+/// Oral-cancer pack feedback: only the progress band, never a number or
+/// "wrong". [band] null = no message (the clarity check measures
+/// silently, item by item).
+class _SelfBaselineCard extends StatelessWidget {
+  const _SelfBaselineCard({super.key, required this.band, this.measured = false});
+  final ProgressBand? band;
+
+  /// Summary of the monthly clarity check.
+  final bool measured;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final b = band;
+    final m = b == null
+        ? (
+            title: measured
+                ? tr('Check saved', 'பரிசோதனை சேமிக்கப்பட்டது')
+                : tr('Thank you — saved', 'நன்றி — சேமிக்கப்பட்டது'),
+            detail: tr('Go on to the next one when you are ready.',
+                'தயாரானதும் அடுத்ததுக்குச் செல்லுங்கள்.'),
+          )
+        : SelfBaselineFeedback.messageFor(b, LanguageService.currentLanguage);
+    final (icon, color, soft) = switch (b) {
+      ProgressBand.clearer => (Icons.trending_up_rounded, AphColors.success, AphColors.successSoft),
+      ProgressBand.harderToday => (Icons.bedtime_rounded, AphColors.info, AphColors.infoSoft),
+      ProgressBand.settingStartingPoint => (Icons.flag_rounded, AphColors.primary, AphColors.primarySoft),
+      _ => (Icons.check_circle_rounded, AphColors.primary, AphColors.primarySoft),
+    };
+    return Semantics(
+      liveRegion: true,
+      child: AphCard(
+        color: soft,
+        borderColor: color.withValues(alpha: 0.35),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 32),
+            const Gap(AphSpace.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(m.title, style: t.titleLarge?.copyWith(color: color)),
+                  const Gap(AphSpace.xxs),
+                  Text(m.detail, style: t.bodyLarge),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

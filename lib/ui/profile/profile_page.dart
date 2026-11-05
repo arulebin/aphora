@@ -1,3 +1,5 @@
+import 'package:aphora/data/intake/condition.dart';
+import 'package:aphora/ui/practice/my_phrases_page.dart';
 import 'package:aphora/data/intake/intake_questions.dart';
 import 'package:aphora/data/learning/child_profile.dart';
 import 'package:aphora/data/models/usermodel.dart';
@@ -110,6 +112,18 @@ class ProfilePage extends StatelessWidget {
                 icon: Icons.quiz_rounded,
                 onPressed: () => openIntake(context),
               ),
+              if (user.activeCondition == Condition.oralCancerRehab) ...[
+                const Gap(AphSpace.sm),
+                AphButton.secondary(
+                  key: const ValueKey('me_my_phrases'),
+                  label: tr('My phrases', 'என் சொற்றொடர்கள்'),
+                  icon: Icons.badge_rounded,
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MyPhrasesPage()),
+                  ),
+                ),
+              ],
             ],
             const ComfortSettingsSection(),
             const Gap(AphSpace.xl),

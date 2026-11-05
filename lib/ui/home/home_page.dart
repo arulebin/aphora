@@ -176,13 +176,18 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
             if (user != null &&
-                user.preAssessmentScore == null &&
-                ConditionPacks.forUser(user).hasCheckUp) ...[
+                ConditionPacks.forUser(user).hasCheckUp &&
+                ConditionPacks.forUser(user).checkUpDue(user)) ...[
               const Gap(AphSpace.md),
               ActionTile(
                 icon: Icons.assignment_rounded,
-                title: tr('Start with a speech check-up', 'பேச்சு மதிப்பீட்டுடன் தொடங்குங்கள்'),
-                subtitle: ConditionPacks.childWording(user)
+                title: ConditionPacks.forUser(user).checkUpIsMeasure
+                    ? ConditionPacks.forUser(user).title(PracticeKind.assessment)
+                    : tr('Start with a speech check-up', 'பேச்சு மதிப்பீட்டுடன் தொடங்குங்கள்'),
+                subtitle: ConditionPacks.forUser(user).checkUpIsMeasure
+                    ? tr('About 5 minutes, once a month. The same 20 items show how your speech is changing.',
+                        'மாதம் ஒருமுறை, சுமார் 5 நிமிடம். அதே 20 சொற்கள் உங்கள் பேச்சு எப்படி மாறுகிறது என்று காட்டும்.')
+                    : ConditionPacks.childWording(user)
                     ? tr(
                         'About ${PracticeKind.assessment.minutes} minutes. It helps us choose the right exercises for your child.',
                         'சுமார் ${PracticeKind.assessment.minutes} நிமிடம். உங்கள் குழந்தைக்கு ஏற்ற பயிற்சிகளைத் தேர்ந்தெடுக்க உதவும்.',
@@ -333,10 +338,16 @@ class _WeekCard extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: _Mini(
-                  value: '${(user?.averageAccuracy ?? 0).round()}',
-                  label: tr('avg score', 'சராசரி'),
-                ),
+                child: ConditionPacks.forUser(user).selfBaselineScoring
+                    // Oral-cancer pack: no scores for the person.
+                    ? _Mini(
+                        value: '${user?.sessionsCompleted ?? 0}',
+                        label: tr('sessions', 'அமர்வுகள்'),
+                      )
+                    : _Mini(
+                        value: '${(user?.averageAccuracy ?? 0).round()}',
+                        label: tr('avg score', 'சராசரி'),
+                      ),
               ),
             ],
           ),

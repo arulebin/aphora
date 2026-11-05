@@ -1,9 +1,11 @@
+import 'package:aphora/logic/baseline_scoring.dart';
 import 'package:aphora/data/learning/packs/condition_packs.dart';
 import 'package:aphora/data/learning/practice_catalog.dart';
 import 'package:aphora/data/models/practice_record.dart';
 import 'package:aphora/data/models/usermodel.dart';
 import 'package:aphora/logic/language_service.dart';
 import 'package:aphora/logic/locator.dart';
+import 'package:aphora/logic/self_baseline_feedback.dart';
 import 'package:aphora/ui/design/components.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -76,6 +78,10 @@ class ProgressBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
     final mastered = user.completedExercises.length;
+    // Oral-cancer pack: the person sees progress against their own start,
+    // never scores (the therapist still does).
+    final hideScores =
+        !forTherapist && ConditionPacks.forUser(user).selfBaselineScoring;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -87,11 +93,18 @@ class ProgressBody extends StatelessWidget {
           crossAxisSpacing: AphSpace.sm,
           childAspectRatio: 1.35,
           children: [
-            StatTile(
-              value: '${user.averageAccuracy.round()}',
-              label: tr('Average score', 'சராசரி மதிப்பெண்'),
-              icon: Icons.track_changes_rounded,
-            ),
+            if (hideScores)
+              StatTile(
+                value: '${user.totalAttempts}',
+                label: tr('Attempts', 'முயற்சிகள்'),
+                icon: Icons.record_voice_over_rounded,
+              )
+            else
+              StatTile(
+                value: '${user.averageAccuracy.round()}',
+                label: tr('Average score', 'சராசரி மதிப்பெண்'),
+                icon: Icons.track_changes_rounded,
+              ),
             StatTile(
               value: '${user.streakDays}',
               label: tr('Day streak', 'நாள் தொடர்'),
@@ -137,9 +150,27 @@ class ProgressBody extends StatelessWidget {
             for (final a in attempts) {
               byCat.putIfAbsent(a.category, () => []).add(a.score);
             }
+            final band = hideScores && attempts.isNotEmpty
+                ? SelfBaselineFeedback.messageFor(
+                    BaselineScoring.summarise(SelfBaselineFeedback.fromRecords(attempts)).band,
+                    LanguageService.currentLanguage)
+                : null;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (hideScores) ...[
+                  SectionHeader(tr('How it is going', 'எப்படிப் போகிறது')),
+                  FeedbackBanner(
+                    key: const ValueKey('progress_band'),
+                    tone: FeedbackTone.info,
+                    title: band?.title ??
+                        tr('Practise a few times to set your starting point',
+                            'உங்கள் தொடக்க நிலையைப் பதிவு செய்ய சில முறை பயிற்சி செய்யுங்கள்'),
+                    message: band?.detail ??
+                        tr('We compare you only with yourself.',
+                            'உங்களை உங்களுடனே மட்டும் ஒப்பிடுகிறோம்.'),
+                  ),
+                ] else ...[
                 SectionHeader(
                   tr('Score trend', 'மதிப்பெண் போக்கு'),
                   subtitle: tr('Last ${scores.length} answers', 'கடைசி ${scores.length} பதில்கள்'),
@@ -191,6 +222,7 @@ class ProgressBody extends StatelessWidget {
                     ),
                   ),
                 ],
+                ],
                 SectionHeader(tr('Recent sessions', 'சமீபத்திய அமர்வுகள்')),
                 if (sessions.isEmpty)
                   EmptyState(
@@ -211,7 +243,7 @@ class ProgressBody extends StatelessWidget {
                       children: [
                         for (final (i, s) in sessions.indexed) ...[
                           if (i > 0) const Divider(),
-                          _SessionRow(s: s),
+                          _SessionRow(s: s, showScore: !hideScores),
                         ],
                       ],
                     ),
@@ -238,8 +270,9 @@ class ProgressBody extends StatelessWidget {
 }
 
 class _SessionRow extends StatelessWidget {
-  const _SessionRow({required this.s});
+  const _SessionRow({required this.s, this.showScore = true});
   final SessionRecord s;
+  final bool showScore;
 
   static String _helper(String? name) => name?.isNotEmpty == true
       ? tr('with $name', '$name உடன்')
@@ -269,7 +302,7 @@ class _SessionRow extends StatelessWidget {
                   ],
                 ),
               ),
-              if (s.itemCount > 0) ScoreBadge(score: s.averageScore),
+              if (s.itemCount > 0 && showScore) ScoreBadge(score: s.averageScore),
             ],
           ),
           if (s.note != null && s.note!.isNotEmpty) ...[

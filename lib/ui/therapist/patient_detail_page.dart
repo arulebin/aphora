@@ -2,7 +2,10 @@ import 'package:aphora/data/intake/condition.dart';
 import 'package:aphora/data/intake/intake_questions.dart';
 import 'package:aphora/data/learning/child_profile.dart';
 import 'package:aphora/data/models/practice_record.dart';
+import 'package:aphora/data/models/oral_records.dart';
 import 'package:aphora/data/models/usermodel.dart';
+import 'package:aphora/logic/baseline_scoring.dart';
+import 'package:aphora/logic/self_baseline_feedback.dart';
 import 'package:aphora/logic/locator.dart';
 import 'package:aphora/logic/practice_rewards.dart';
 import 'package:aphora/ui/design/components.dart';
@@ -39,7 +42,9 @@ class _PatientDetailPageState extends State<PatientDetailPage> {
 
   Future<(List<AttemptRecord>, List<SessionRecord>)> _load() async {
     final r = await Future.wait([
-      _db.getRecentAttempts(widget.patient.uid, limit: 40),
+      // Self-baseline scoring needs each item's first attempts too.
+      _db.getRecentAttempts(widget.patient.uid,
+          limit: widget.patient.activeCondition == Condition.oralCancerRehab ? 500 : 40),
       _db.getRecentSessions(widget.patient.uid),
     ]);
     return (r[0] as List<AttemptRecord>, r[1] as List<SessionRecord>);
@@ -158,6 +163,14 @@ class _PatientDetailPageState extends State<PatientDetailPage> {
           ),
         ),
         _IntakeSection(patient: p),
+        if (p.activeCondition == Condition.oralCancerRehab)
+          FutureBuilder<(List<AttemptRecord>, List<SessionRecord>)>(
+            future: _future,
+            builder: (context, snap) => OralProgressSection(
+              attempts: snap.data?.$1,
+              tests: p.oralClarityTests,
+            ),
+          ),
         _PlanSection(
           patient: p,
           onSaved: (c, level) => setState(() {
@@ -418,6 +431,84 @@ class _IntakeSection extends StatelessWidget {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// Oral-cancer pack, therapist view: the numbers behind the patient's band
+/// messages — change against their own starting point (median over items,
+/// points 0–100) and the monthly clarity checks (% of the 20 items a
+/// recogniser understood).
+class OralProgressSection extends StatelessWidget {
+  const OralProgressSection({super.key, required this.attempts, required this.tests});
+
+  /// Null while loading.
+  final List<AttemptRecord>? attempts;
+  final List<ClarityTest> tests;
+
+  static String _pts(double v) => '${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}';
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final oral = SelfBaselineFeedback.fromRecords(
+        (attempts ?? const []).where((a) => a.taskId.startsWith('oral_')));
+    final summary = BaselineScoring.summarise(oral);
+    final start = ClarityTest.startingPoint(tests);
+    final latest = ClarityTest.latest(tests);
+    String row(String label, String value) => '$label: $value';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(
+          'Self-baseline progress',
+          subtitle: 'Compared only with the patient\'s own first attempts. '
+              'The patient sees messages, not these numbers.',
+        ),
+        AphCard(
+          key: const ValueKey('oral_progress'),
+          child: attempts == null
+              ? const LoadingState()
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      row('Median change',
+                          summary.medianChange == null ? 'no starting point yet' : '${_pts(summary.medianChange!)} points'),
+                      style: t.titleMedium,
+                    ),
+                    Text(
+                      'Items: ${summary.items.length} · clearer ${summary.count(ProgressBand.clearer)} · '
+                      'same ${summary.count(ProgressBand.aboutTheSame)} · '
+                      'harder ${summary.count(ProgressBand.harderToday)} · '
+                      'setting start ${summary.count(ProgressBand.settingStartingPoint)}',
+                      style: t.bodyMedium,
+                    ),
+                    const Divider(height: AphSpace.lg),
+                    Text(
+                      row('Clarity check',
+                          latest == null
+                              ? 'not taken yet'
+                              : '${latest.percent.round()}% understood '
+                                  '(${latest.understood}/${latest.attempted}, '
+                                  '${DateFormat('d MMM yyyy').format(latest.at)})'),
+                      style: t.titleMedium,
+                    ),
+                    if (start != null)
+                      Text(
+                        'Starting point ${start.percent.round()}% '
+                        '(${DateFormat('d MMM yyyy').format(start.at)})'
+                        '${latest != null && latest != start ? ' · change ${_pts(latest.percent - start.percent)} points' : ''}'
+                        ' · ${tests.length} check${tests.length == 1 ? '' : 's'}',
+                        style: t.bodyMedium,
+                      ),
+                    if (latest != null && latest.missed.isNotEmpty)
+                      Text('Not understood last time: ${latest.missed.join(', ')}',
+                          style: t.bodySmall),
+                  ],
+                ),
+        ),
       ],
     );
   }

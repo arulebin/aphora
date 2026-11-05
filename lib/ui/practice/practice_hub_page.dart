@@ -1,3 +1,4 @@
+import 'package:aphora/data/intake/condition.dart';
 import 'package:aphora/data/learning/packs/condition_packs.dart';
 import 'package:aphora/data/learning/practice_catalog.dart';
 import 'package:aphora/data/models/usermodel.dart';
@@ -8,6 +9,8 @@ import 'package:aphora/logic/locator.dart';
 import 'package:aphora/ui/design/components.dart';
 import 'package:aphora/ui/design/voice_check_banner.dart';
 import 'package:aphora/ui/practice/family_voice_page.dart';
+import 'package:aphora/ui/practice/my_phrases_page.dart';
+import 'package:aphora/ui/practice/practice_safety.dart';
 import 'package:aphora/ui/practice/picture_match_page.dart';
 import 'package:aphora/ui/practice/practice_session_page.dart';
 import 'package:flutter/material.dart';
@@ -77,6 +80,25 @@ class PracticeHubPage extends StatelessWidget {
           showBack: false,
           children: [
             const VoiceCheckBanner(),
+            if (pack.safetyLine case final line?) ...[
+              FeedbackBanner(
+                key: const ValueKey('hub_safety_line'),
+                tone: pack.safetyFor(user) == PracticeSafety.hold
+                    ? FeedbackTone.warning
+                    : FeedbackTone.info,
+                title: line,
+              ),
+              if (pack.safetyFor(user) == PracticeSafety.hold) ...[
+                const Gap(AphSpace.sm),
+                AphButton.secondary(
+                  key: const ValueKey('hub_safety_confirm'),
+                  label: careTeamSaidYes,
+                  icon: Icons.health_and_safety_rounded,
+                  onPressed: () => ensurePracticeSafety(context),
+                ),
+              ],
+              const Gap(AphSpace.md),
+            ],
             if (pending) ...[
               FeedbackBanner(
                 tone: FeedbackTone.info,
@@ -96,6 +118,25 @@ class PracticeHubPage extends StatelessWidget {
             ),
             const Gap(AphSpace.md),
             _ParentModeSwitch(child: child),
+            if (pack.condition == Condition.oralCancerRehab) ...[
+              const Gap(AphSpace.sm),
+              ActionTile(
+                key: const ValueKey('hub_my_phrases'),
+                icon: Icons.badge_rounded,
+                title: tr('My phrases', 'என் சொற்றொடர்கள்'),
+                subtitle: (user?.oralPersonal.isEmpty ?? true)
+                    ? tr('Add your name, address and who to call — practise saying them',
+                        'உங்கள் பெயர், முகவரி, யாரை அழைக்க வேண்டும் — சேர்த்துப் பயிற்சி செய்யுங்கள்')
+                    : tr('${user!.oralPersonal.length} details added · tap to change',
+                        '${user.oralPersonal.length} விவரங்கள் சேர்க்கப்பட்டன · மாற்றத் தட்டுங்கள்'),
+                color: AphColors.primary,
+                softColor: AphColors.primarySoft,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MyPhrasesPage()),
+                ),
+              ),
+            ],
             const Gap(AphSpace.sm),
             ValueListenableBuilder<Set<String>>(
               valueListenable: FamilyVoiceStore.instance.recorded,
@@ -150,7 +191,7 @@ class PracticeHubPage extends StatelessWidget {
               ActionTile(
                 icon: pack.icon(PracticeKind.assessment),
                 title: pack.title(PracticeKind.assessment),
-                subtitle: user?.preAssessmentScore == null
+                subtitle: pack.checkUpIsMeasure || user?.preAssessmentScore == null
                     ? pack.description(PracticeKind.assessment)
                     : tr('Last score ${user!.preAssessmentScore!.round()} — retake to update your plan',
                         'கடைசி மதிப்பெண் ${user.preAssessmentScore!.round()} — திட்டத்தைப் புதுப்பிக்க மீண்டும் எடுங்கள்'),
