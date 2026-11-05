@@ -100,8 +100,9 @@ class _PictureMatchPageState extends State<PictureMatchPage> {
           helperName: ComfortSettings.instance.helperName.value,
           createdAt: DateTime.now(),
         ));
-        await ComfortSettings.instance
-            .markPlanDone(dayKey(DateTime.now()), 'picture');
+        await ComfortSettings.instance.markPlanDone(
+            dayKey(DateTime.now()), 'picture',
+            uid: Locator.userDatabaseService.currentUser.value?.uid ?? '');
       } catch (_) {}
       return;
     }

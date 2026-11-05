@@ -71,7 +71,8 @@ class _HomePageState extends State<HomePage> {
       builder: (context, user, _) {
         final t = Theme.of(context).textTheme;
         final today = dayKey(DateTime.now());
-        final done = ComfortSettings.instance.planDone(today);
+        final done =
+            ComfortSettings.instance.planDone(today, uid: user?.uid ?? '');
         final plan = PlanStep.forUser(user);
         final remaining = plan.where((s) => !done.contains(s.id)).toList();
         final mins = remaining.fold<int>(0, (a, s) => a + s.minutes);
@@ -209,7 +210,8 @@ class _HomePageState extends State<HomePage> {
               subtitle: remaining.isEmpty
                   ? tr('All done for today — wonderful work.',
                       'இன்றைக்கு எல்லாம் முடிந்தது — அருமை.')
-                  : tr('${remaining.length} exercises · about $mins minutes',
+                  : tr(
+                      '${remaining.length} ${remaining.length == 1 ? 'exercise' : 'exercises'} · about $mins minutes',
                       '${remaining.length} பயிற்சிகள் · சுமார் $mins நிமிடங்கள்'),
             ),
             AphCard(

@@ -502,8 +502,9 @@ class _PracticeSessionPageState extends State<PracticeSessionPage> {
         await Locator.userDatabaseService
             .saveClarityTest(ClarityTest.fromResult(_clarity!, DateTime.now()));
       }
-      await ComfortSettings.instance
-          .markPlanDone(dayKey(DateTime.now()), widget.kind.id);
+      await ComfortSettings.instance.markPlanDone(
+          dayKey(DateTime.now()), widget.kind.id,
+          uid: Locator.userDatabaseService.currentUser.value?.uid ?? '');
       _saved = true;
     } catch (_) {
       if (mounted) {

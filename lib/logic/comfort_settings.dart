@@ -110,13 +110,17 @@ class ComfortSettings {
     });
   }
 
-  /// Local, per-day record of which daily-plan items are done.
-  Set<String> planDone(String dayKey) =>
-      (_prefs?.getStringList('plan_$dayKey') ?? const <String>[]).toSet();
+  /// Local, per-user, per-day record of which daily-plan items are done.
+  /// Keyed by [uid] so a second account on the same phone (a family, or a
+  /// therapist demo) doesn't inherit the first account's ticks.
+  Set<String> planDone(String dayKey, {required String uid}) =>
+      (_prefs?.getStringList('plan_${uid}_$dayKey') ?? const <String>[])
+          .toSet();
 
-  Future<void> markPlanDone(String dayKey, String itemId) async {
-    final done = planDone(dayKey)..add(itemId);
-    await _prefs?.setStringList('plan_$dayKey', done.toList());
+  Future<void> markPlanDone(String dayKey, String itemId,
+      {required String uid}) async {
+    final done = planDone(dayKey, uid: uid)..add(itemId);
+    await _prefs?.setStringList('plan_${uid}_$dayKey', done.toList());
   }
 }
 
