@@ -12,6 +12,7 @@ class AttemptRecord {
     required this.method,
     required this.assisted,
     required this.createdAt,
+    this.hintsUsed = 0,
     this.id = '',
   });
 
@@ -32,6 +33,10 @@ class AttemptRecord {
 
   /// Done with a caregiver / volunteer helping.
   final bool assisted;
+
+  /// Rungs of the cueing ladder used before this attempt (0–3: meaning
+  /// hint, first sound, full model). Older docs have no field → 0.
+  final int hintsUsed;
   final DateTime createdAt;
 
   Map<String, dynamic> toMap() => {
@@ -42,6 +47,7 @@ class AttemptRecord {
         'score': score,
         'method': method,
         'assisted': assisted,
+        'hintsUsed': hintsUsed,
         'createdAt': Timestamp.fromDate(createdAt),
       };
 
@@ -55,6 +61,7 @@ class AttemptRecord {
         score: (m['score'] as num? ?? 0).toDouble(),
         method: m['method']?.toString() ?? 'device',
         assisted: m['assisted'] == true,
+        hintsUsed: (m['hintsUsed'] as num? ?? 0).toInt(),
         createdAt: _date(m['createdAt']),
       );
 }

@@ -220,6 +220,7 @@ class UserDatabaseService {
     String spoken = '',
     String method = 'device',
     bool assisted = false,
+    int hintsUsed = 0,
   }) async {
     final user = currentUser.value;
     if (user == null) return null;
@@ -267,6 +268,7 @@ class UserDatabaseService {
           score: acc,
           method: method,
           assisted: assisted,
+          hintsUsed: hintsUsed,
           createdAt: DateTime.now(),
         ).toMap(),
       );
