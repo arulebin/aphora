@@ -30,7 +30,11 @@ class _UserInfoPageState extends State<UserInfoPage> {
   String? _gender;
   String _type = 'Not sure';
   String? _severity;
+  bool _consent = false;
   bool _loading = false;
+
+  /// Bump when the consent text below changes.
+  static const consentVersion = '2026-11-05';
   String? _error;
 
   @override
@@ -51,12 +55,18 @@ class _UserInfoPageState extends State<UserInfoPage> {
           'மேலே உள்ள அனைத்துக் கேள்விகளுக்கும் பதிலளிக்கவும்.'));
       return;
     }
+    if (!_consent) {
+      setState(() => _error = tr(
+          'Please tick the box to agree before creating the account.',
+          'கணக்கை உருவாக்கும் முன் ஒப்புதல் பெட்டியைத் தேர்வு செய்யவும்.'));
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      await Locator.userDatabaseService.signUp(
+      final created = await Locator.userDatabaseService.signUp(
         phone: widget.phone,
         password: widget.password,
         name: _name.text.trim(),
@@ -65,6 +75,8 @@ class _UserInfoPageState extends State<UserInfoPage> {
         aphasiaType: _type,
         severityLevel: _severity!,
       );
+      await Locator.userDatabaseService
+          .recordParentConsent(created.uid, version: consentVersion);
       // A parent always practises alongside the child: start every new
       // account with the hand-over screen and helper log switched on.
       ComfortSettings.instance.assistedMode.value = true;
@@ -161,6 +173,28 @@ class _UserInfoPageState extends State<UserInfoPage> {
                 ],
                 value: _severity,
                 onChanged: (v) => setState(() => _severity = v),
+              ),
+              const Gap(AphSpace.lg),
+              AphCard(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AphSpace.xs, vertical: AphSpace.xs),
+                child: CheckboxListTile(
+                  key: const Key('parent-consent'),
+                  value: _consent,
+                  onChanged: (v) => setState(() => _consent = v ?? false),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: AphSpace.xs),
+                  title: Text(tr(
+                    "I am this child's parent or guardian, and I agree",
+                    'நான் இந்தக் குழந்தையின் பெற்றோர் / பாதுகாவலர், நான் ஒப்புக்கொள்கிறேன்',
+                  )),
+                  subtitle: Text(tr(
+                    "Vernacura saves your child's name, age and practice results to show progress, and shares them only with the therapist you link. "
+                        'Family Voice recordings stay on this phone. You can delete the account at any time from Me.',
+                    'முன்னேற்றத்தைக் காட்ட குழந்தையின் பெயர், வயது, பயிற்சி முடிவுகளை Vernacura சேமிக்கிறது; நீங்கள் இணைக்கும் சிகிச்சையாளருடன் மட்டுமே பகிரப்படும். '
+                        'குடும்பக் குரல் பதிவுகள் இந்தத் தொலைபேசியிலேயே இருக்கும். "நான்" பக்கத்தில் எப்போது வேண்டுமானாலும் கணக்கை நீக்கலாம்.',
+                  )),
+                ),
               ),
               if (_error != null) ...[
                 const Gap(AphSpace.md),

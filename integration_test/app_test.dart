@@ -105,6 +105,10 @@ void main() {
     await d.tapText('Boy');
     await d.tapText('Not sure');
     await d.tapText('Mostly easy to understand');
+    // Without consent the account is not created.
+    await d.tap(find.widgetWithText(AphButton, 'Create account'), why: 'Create (no consent)');
+    await d.wait(find.textContaining('tick the box'), why: 'consent required');
+    await d.tap(find.byKey(const Key('parent-consent')), why: 'parent consent');
     await d.tap(find.widgetWithText(AphButton, 'Create account'), why: 'Create account');
     await d.wait(find.text('Today'), why: 'home after sign-up', seconds: 30);
     await d.idle(1500);

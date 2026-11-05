@@ -120,4 +120,15 @@ class FamilyVoiceStore {
     }
     recorded.value = {...recorded.value}..remove(_id(key));
   }
+
+  /// Removes every family recording on this phone (account deletion).
+  Future<void> deleteAll() async {
+    try {
+      final dir = await _folder();
+      if (dir != null && await dir.exists()) await dir.delete(recursive: true);
+    } catch (e) {
+      debugPrint('Family voice delete-all failed: $e');
+    }
+    recorded.value = const {};
+  }
 }

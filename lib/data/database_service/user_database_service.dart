@@ -201,6 +201,16 @@ class UserDatabaseService {
     currentUser.value = updated;
   }
 
+  /// Stores that a parent/guardian agreed to the data notice shown at
+  /// sign-up (India's DPDP Act 2023 requires verifiable parental consent
+  /// for children's data). [version] identifies the notice text.
+  Future<void> recordParentConsent(String uid, {required String version}) async {
+    await _db.collection(userCollection).doc(uid).update({
+      'parentConsentAt': FieldValue.serverTimestamp(),
+      'consentVersion': version,
+    });
+  }
+
   Future<void> setLanguagePreference(String language) async {
     final user = currentUser.value;
     if (user == null) return;
@@ -351,7 +361,21 @@ class UserDatabaseService {
   Future<void> deleteUser() async {
     final user = _auth.currentUser;
     if (user == null) return;
-    await _db.collection(userCollection).doc(user.uid).delete();
+    final ref = _db.collection(userCollection).doc(user.uid);
+    // Firestore does not delete subcollections with their parent: remove
+    // the child's attempts and sessions explicitly, in batches of 400.
+    for (final sub in ['attempts', 'sessions']) {
+      while (true) {
+        final page = await ref.collection(sub).limit(400).get();
+        if (page.docs.isEmpty) break;
+        final batch = _db.batch();
+        for (final d in page.docs) {
+          batch.delete(d.reference);
+        }
+        await batch.commit();
+      }
+    }
+    await ref.delete();
     await user.delete();
     currentUser.value = null;
   }
