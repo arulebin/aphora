@@ -279,13 +279,19 @@ void main() {
     await d.idle(1500);
     await d.shot('therapist_confirmed');
     await d.tap(find.text('Kavin').last, why: 'open patient');
-    await d.wait(find.text('Recent attempts'), why: 'patient detail', seconds: 20);
+    // The intake section sits near the top; attempts are far below it on
+    // this (lazily built) page, so check top-down and give the scroll time.
+    await d.wait(find.text('Intake summary'), why: 'patient detail', seconds: 20);
     await d.idle(1500);
     await d.shot('patient_detail');
     await d.wait(find.textContaining('speech delay pack'), why: 'condition pill');
-    await d.wait(find.text('Intake summary'), why: 'intake summary section');
     await d.wait(find.textContaining('First words: Before 1½ years.'), why: 'intake summary text');
     await d.shot('patient_intake');
+    await tester.scrollUntilVisible(find.text('Recent attempts'), 500,
+        scrollable: find.byWidgetPredicate((w) =>
+            w is Scrollable && w.axisDirection == AxisDirection.down).first,
+        maxScrolls: 60);
+    await d.idle(800);
     expect(find.text('No attempts recorded yet'), findsNothing,
         reason: 'therapist cannot see the attempts the child made');
     await d.type('Home practice guidance', 'Practise ப and ம words with picture cards.');
