@@ -1,3 +1,6 @@
+import 'package:aphora/data/intake/condition.dart';
+import 'package:aphora/data/intake/intake_record.dart';
+
 class UserModel {
   final String uid;
   final String name;
@@ -54,6 +57,19 @@ class UserModel {
   /// A short note the linked therapist leaves for the patient/caregiver.
   final String? therapistNote;
 
+  /// Condition pack chosen by the intake questionnaire. Accounts created
+  /// before the intake existed read as [Condition.unknown].
+  final Condition condition;
+
+  /// The latest completed intake questionnaire, or null if never answered.
+  final IntakeRecord? intake;
+
+  /// Child wording applies to the children's pack and to older accounts
+  /// that never answered the intake (all of them were children's accounts).
+  bool get isChild =>
+      condition == Condition.childSpeechDelay ||
+      (condition == Condition.unknown && intake == null);
+
   // Caregiver/Therapist linkage (holds the therapist's 6-char code).
   String? linkedCaregiverId;
 
@@ -103,6 +119,8 @@ class UserModel {
     this.preAssessmentDate,
     this.recommendedFocus,
     this.therapistNote,
+    this.condition = Condition.unknown,
+    this.intake,
     required this.createdAt,
     required this.updatedAt,
   }) : dailyActivity = dailyActivity ?? <String, int>{},
@@ -134,6 +152,8 @@ class UserModel {
       'preAssessmentDate': preAssessmentDate?.toIso8601String(),
       'recommendedFocus': recommendedFocus,
       'therapistNote': therapistNote,
+      'condition': condition.id,
+      if (intake != null) 'intake': intake!.toMap(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -170,6 +190,8 @@ class UserModel {
       ),
       recommendedFocus: map['recommendedFocus'] as String?,
       therapistNote: map['therapistNote'] as String?,
+      condition: Condition.fromId(map['condition']),
+      intake: IntakeRecord.tryFromMap(map['intake']),
       createdAt: DateTime.parse(
         map['createdAt'] ?? DateTime.now().toIso8601String(),
       ),
@@ -203,6 +225,8 @@ class UserModel {
     DateTime? preAssessmentDate,
     String? recommendedFocus,
     String? therapistNote,
+    Condition? condition,
+    IntakeRecord? intake,
     DateTime? updatedAt,
   }) {
     return UserModel(
@@ -229,6 +253,8 @@ class UserModel {
       preAssessmentDate: preAssessmentDate ?? this.preAssessmentDate,
       recommendedFocus: recommendedFocus ?? this.recommendedFocus,
       therapistNote: therapistNote ?? this.therapistNote,
+      condition: condition ?? this.condition,
+      intake: intake ?? this.intake,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
