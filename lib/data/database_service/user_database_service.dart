@@ -178,7 +178,10 @@ class UserDatabaseService {
   }
 
   Future<void> updateUser(UserModel user) async {
-    await _db.collection(userCollection).doc(user.uid).update(user.toMap());
+    // Therapist-owned fields are left alone (see UserModel.therapistFields).
+    final data = user.toMap()
+      ..removeWhere((k, _) => UserModel.therapistFields.contains(k));
+    await _db.collection(userCollection).doc(user.uid).update(data);
     if (currentUser.value?.uid == user.uid) currentUser.value = user;
   }
 
@@ -494,6 +497,20 @@ class UserDatabaseService {
   Future<void> setTherapistNote(String patientUid, String note) async {
     await _db.collection(userCollection).doc(patientUid).update({
       'therapistNote': note.trim(),
+    });
+  }
+
+  /// The linked therapist's choice of pack and level for a patient. Null
+  /// clears it, so the app follows the intake again. Only these two fields
+  /// change (the Firestore rules allow nothing else for a therapist).
+  Future<void> setTherapistPlan(
+    String patientUid, {
+    required Condition? condition,
+    required int? level,
+  }) async {
+    await _db.collection(userCollection).doc(patientUid).update({
+      'therapistCondition': condition?.id,
+      'therapistLevel': level,
     });
   }
 

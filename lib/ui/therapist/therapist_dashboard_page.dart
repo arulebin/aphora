@@ -253,9 +253,12 @@ class _PatientTile extends StatelessWidget {
               children: [
                 Text(patient.name, style: t.titleMedium),
                 Text(
-                  '${ChildProfile.concern(patient.aphasiaType)} · '
-                  '${ChildProfile.clarity(patient.severityLevel)} · '
-                  'active $active',
+                  patient.isChild
+                      ? '${ChildProfile.concern(patient.aphasiaType)} · '
+                          '${ChildProfile.clarity(patient.severityLevel)} · '
+                          'active $active'
+                      : '${patient.activeCondition.therapistLabel} · '
+                          'level ${patient.practiceLevel} · active $active',
                   style: t.bodySmall,
                 ),
                 const Gap(AphSpace.xxs),

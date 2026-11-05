@@ -62,10 +62,15 @@ class ProfilePage extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    _Info(tr('Programme', 'பயிற்சித் திட்டம்'),
-                        user.intake == null
-                            ? tr('Questions not answered yet', 'கேள்விகளுக்கு இன்னும் பதில் இல்லை')
-                            : user.condition.label),
+                    _Info(
+                      tr('Programme', 'பயிற்சித் திட்டம்'),
+                      user.therapistCondition != null
+                          ? user.activeCondition.label
+                          : user.intake == null
+                              ? tr('Questions not answered yet', 'கேள்விகளுக்கு இன்னும் பதில் இல்லை')
+                              : user.condition.label,
+                      note: user.therapistCondition != null ? _setByTherapist : null,
+                    ),
                     const Divider(),
                     _Info(tr('Age', 'வயது'), user.age > 0 ? '${user.age}' : '—'),
                     if (user.isChild) ...[
@@ -78,10 +83,13 @@ class ProfilePage extends StatelessWidget {
                       _Info(tr('Speech clarity', 'பேச்சுத் தெளிவு'),
                           ChildProfile.clarity(user.severityLevel)),
                     ],
-                    if (user.intake != null) ...[
+                    if (user.intake != null || user.therapistLevel != null) ...[
                       const Divider(),
-                      _Info(tr('Start level', 'தொடக்க நிலை'),
-                          StartLevel.label(user.intake!.startLevel).text),
+                      _Info(
+                        tr('Practice level', 'பயிற்சி நிலை'),
+                        StartLevel.label(user.practiceLevel).text,
+                        note: user.therapistLevel != null ? _setByTherapist : null,
+                      ),
                     ],
                     const Divider(),
                     _Info(
@@ -129,9 +137,13 @@ class ProfilePage extends StatelessWidget {
                 final ok = await confirmDialog(
                   context,
                   title: tr('Delete everything?', 'அனைத்தையும் நீக்கவா?'),
-                  message: tr(
-                      "This permanently deletes your child's profile, all practice results and the Family Voice recordings on this phone. It cannot be undone.",
-                      'குழந்தையின் சுயவிவரம், அனைத்துப் பயிற்சி முடிவுகள், இந்தத் தொலைபேசியில் உள்ள குடும்பக் குரல் பதிவுகள் நிரந்தரமாக நீக்கப்படும். திரும்பப் பெற முடியாது.'),
+                  message: (user?.isChild ?? true)
+                      ? tr(
+                          "This permanently deletes your child's profile, all practice results and the Family Voice recordings on this phone. It cannot be undone.",
+                          'குழந்தையின் சுயவிவரம், அனைத்துப் பயிற்சி முடிவுகள், இந்தத் தொலைபேசியில் உள்ள குடும்பக் குரல் பதிவுகள் நிரந்தரமாக நீக்கப்படும். திரும்பப் பெற முடியாது.')
+                      : tr(
+                          'This permanently deletes the profile, all practice results and the Family Voice recordings on this phone. It cannot be undone.',
+                          'சுயவிவரம், அனைத்துப் பயிற்சி முடிவுகள், இந்தத் தொலைபேசியில் உள்ள குடும்பக் குரல் பதிவுகள் நிரந்தரமாக நீக்கப்படும். திரும்பப் பெற முடியாது.'),
                   confirm: tr('Delete', 'நீக்கு'),
                 );
                 if (!ok) return;
@@ -165,10 +177,15 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
+String get _setByTherapist => tr('Set by therapist', 'சிகிச்சையாளர் அமைத்தது');
+
 class _Info extends StatelessWidget {
-  const _Info(this.label, this.value);
+  const _Info(this.label, this.value, {this.note});
   final String label;
   final String value;
+
+  /// Small line under the value, e.g. "Set by therapist".
+  final String? note;
 
   @override
   Widget build(BuildContext context) {
@@ -180,7 +197,18 @@ class _Info extends StatelessWidget {
           children: [
             Expanded(child: Text(label, style: t.bodyMedium)),
             Flexible(
-              child: Text(value, style: t.titleMedium, textAlign: TextAlign.end),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(value, style: t.titleMedium, textAlign: TextAlign.end),
+                  if (note != null)
+                    Text(
+                      note!,
+                      style: t.bodySmall?.copyWith(color: AphColors.info),
+                      textAlign: TextAlign.end,
+                    ),
+                ],
+              ),
             ),
           ],
         ),
