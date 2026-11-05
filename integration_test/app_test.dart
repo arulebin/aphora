@@ -80,7 +80,7 @@ void main() {
     await d.type('Mobile number', therapistPhone);
     await d.type('Password', therapistPassword);
     await d.tapText('Create therapist account');
-    await d.wait(find.text('Your patient code'), why: 'therapist dashboard', seconds: 30);
+    await d.wait(find.text('Your code for families'), why: 'therapist dashboard', seconds: 30);
     final code = (tester.widget(find.byType(SelectableText).first) as SelectableText)
         .data!
         .trim();

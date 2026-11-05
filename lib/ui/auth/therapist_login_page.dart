@@ -66,11 +66,11 @@ class _TherapistLoginPageState extends State<TherapistLoginPage> {
   Widget build(BuildContext context) {
     return AuthShell(
       title: 'Therapist portal',
-      subtitle: 'Follow your patients’ home practice and meet them on video.',
+      subtitle: 'Follow each child’s home practice and meet their family on video.',
       footer: [
         Center(
           child: AphButton.ghost(
-            label: 'Back to patient sign in',
+            label: 'Back to parent sign in',
             icon: Icons.arrow_back_rounded,
             onPressed: () => context.go('/login'),
           ),
