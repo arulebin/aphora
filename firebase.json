@@ -21,6 +21,7 @@
     }
   },
   "hosting": {
+    "site": "vernacura",
     "public": "build/web",
     "ignore": [
       "firebase.json",
