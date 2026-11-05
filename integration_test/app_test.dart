@@ -91,19 +91,20 @@ void main() {
     // ── Parent creates the child's account ───────────────────────────
     await d.tapText('Create a new account');
     await d.wait(find.text('Create your account'), why: 'sign-up step 1');
+    await d.wait(find.text("Parent's mobile number"), why: 'parent wording on step 1');
     await d.shot('signup_1');
     await d.typeAt(0, patientPhone);
     await d.typeAt(1, patientPassword);
     await d.typeAt(2, patientPassword);
     await d.tap(find.widgetWithText(AphButton, 'Continue'), why: 'Continue');
-    await d.wait(find.textContaining('Step 2 of 2'), why: 'sign-up step 2');
+    await d.wait(find.text('About your child'), why: 'sign-up step 2');
     await d.shot('signup_2');
-    await d.tapChoice(1); // "A caregiver / helper"
+    // Assisted (parent) mode is switched on for every new account.
     await d.typeAt(0, 'Kavin');
     await d.typeAt(1, '6');
-    await d.tapText('Male');
+    await d.tapText('Boy');
     await d.tapText('Not sure');
-    await d.tapText('A little');
+    await d.tapText('Mostly easy to understand');
     await d.tap(find.widgetWithText(AphButton, 'Create account'), why: 'Create account');
     await d.wait(find.text('Today'), why: 'home after sign-up', seconds: 30);
     await d.idle(1500);
@@ -158,6 +159,10 @@ void main() {
     await d.toggle('High contrast');
     await d.toggle('Reduce motion');
     await d.toggle('Read instructions aloud');
+    final assisted = find.widgetWithText(SwitchListTile, 'Assisted sessions');
+    await d.wait(assisted, why: 'assisted switch');
+    expect((tester.widget(assisted.first) as SwitchListTile).value, isTrue,
+        reason: 'assisted (parent) mode should be on after sign-up');
     await d.setSwitch('Assisted sessions', true);
     await d.idle();
     final helper = find.descendant(
@@ -188,7 +193,7 @@ void main() {
     for (final (label, name) in [
       ('இன்று', 'ta_today'),
       ('பயிற்சி', 'ta_practice'),
-      ('முன்னேற்றம்', 'ta_progress'),
+      ('வளர்ச்சி', 'ta_progress'),
       ('சிகிச்சை', 'ta_care'),
     ]) {
       await d.tab(label);

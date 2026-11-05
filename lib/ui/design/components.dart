@@ -930,10 +930,15 @@ class _ChoiceChip extends StatelessWidget {
                     color: selected ? AphColors.primary : AphColors.inkMuted,
                   ),
                   const SizedBox(width: AphSpace.xs),
-                  Text(
-                    label,
-                    style: t.labelLarge?.copyWith(
-                      color: selected ? AphColors.primaryPressed : AphColors.ink,
+                  // Flexible: long answers ("Started talking late", or
+                  // Tamil at large text) wrap inside the chip instead of
+                  // overflowing the screen.
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: t.labelLarge?.copyWith(
+                        color: selected ? AphColors.primaryPressed : AphColors.ink,
+                      ),
                     ),
                   ),
                 ],

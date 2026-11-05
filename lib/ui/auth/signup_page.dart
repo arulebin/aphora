@@ -39,8 +39,8 @@ class _SignUpPageState extends State<SignUpPage> {
   Widget build(BuildContext context) {
     return AuthShell(
       title: tr('Create your account', 'கணக்கை உருவாக்குங்கள்'),
-      subtitle: tr('Step 1 of 2 · A caregiver can do this for the patient.',
-          'படி 1/2 · பராமரிப்பாளர் இதைச் செய்யலாம்.'),
+      subtitle: tr('Step 1 of 2 · A parent sets this up for their child.',
+          'படி 1/2 · பெற்றோர் தங்கள் குழந்தைக்காக இதை அமைக்கிறார்கள்.'),
       footer: [
         Center(
           child: AphButton.ghost(
@@ -60,7 +60,7 @@ class _SignUpPageState extends State<SignUpPage> {
               const Gap(AphSpace.lg),
               AphTextField(
                 controller: _phone,
-                label: tr("Patient's mobile number", 'நோயாளியின் மொபைல் எண்'),
+                label: tr("Parent's mobile number", 'பெற்றோரின் மொபைல் எண்'),
                 helper: tr('Used to sign in. No SMS is sent.', 'உள்நுழைய பயன்படும். SMS அனுப்பப்படாது.'),
                 icon: Icons.phone_rounded,
                 keyboardType: TextInputType.phone,
