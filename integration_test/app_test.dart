@@ -91,26 +91,50 @@ void main() {
     // ── Parent creates the child's account ───────────────────────────
     await d.tapText('Create a new account');
     await d.wait(find.text('Create your account'), why: 'sign-up step 1');
-    await d.wait(find.text("Parent's mobile number"), why: 'parent wording on step 1');
+    await d.wait(find.text('Your mobile number'), why: 'phone field on step 1');
     await d.shot('signup_1');
     await d.typeAt(0, patientPhone);
     await d.typeAt(1, patientPassword);
     await d.typeAt(2, patientPassword);
     await d.tap(find.widgetWithText(AphButton, 'Continue'), why: 'Continue');
-    await d.wait(find.text('About your child'), why: 'sign-up step 2');
+    await d.wait(find.text('Who will practise?'), why: 'sign-up step 2');
+    await d.wait(find.text('Who is this for?'), why: 'who question on step 2');
     await d.shot('signup_2');
-    // Assisted (parent) mode is switched on for every new account.
+    // Name/age fields appear once "Who is this for?" is answered.
+    await d.tapText('My child');
+    await d.wait(find.text("Child's name"), why: 'child wording on step 2');
+    // Assisted (parent) mode is switched on for every parent sign-up.
     await d.typeAt(0, 'Kavin');
     await d.typeAt(1, '6');
     await d.tapText('Boy');
-    await d.tapText('Not sure');
-    await d.tapText('Mostly easy to understand');
     // Without consent the account is not created.
     await d.tap(find.widgetWithText(AphButton, 'Create account'), why: 'Create (no consent)');
     await d.wait(find.textContaining('tick the box'), why: 'consent required');
     await d.tap(find.byKey(const Key('parent-consent')), why: 'parent consent');
+    await d.shot('signup_2_filled');
     await d.tap(find.widgetWithText(AphButton, 'Create account'), why: 'Create account');
+
+    // ── Step 3: intake questionnaire (child, age 6 → 9 questions) ─────
+    await d.wait(find.text('A few questions'), why: 'questionnaire after sign-up', seconds: 30);
+    await d.wait(find.text('1 of 9'), why: 'questionnaire progress');
+    await d.shot('intake_first');
+    await d.answer('Before 1½ years'); // first words
+    await d.answer('Yes'); // follows a simple instruction
+    await d.answer('Most of it'); // understood by family
+    await d.answer('About half'); // understood by strangers
+    await d.answer('A few sounds'); // hard sounds
+    await d.answer('Yes, usually'); // turns to name / sounds
+    await d.answer('No'); // lost words
+    await d.answer('Yes, often'); // looks and points
+    await d.answer('No', next: 'See the result'); // chewing / swallowing
+    await d.wait(find.text('Your starting plan'), why: 'intake result');
+    await d.wait(find.text('Level 2 · words'), why: 'start level');
+    expect(find.text('Please also check'), findsNothing, reason: 'no red flags expected');
+    await d.shot('intake_result');
+    await d.tap(find.widgetWithText(AphButton, 'Save and continue'), why: 'save intake');
     await d.wait(find.text('Today'), why: 'home after sign-up', seconds: 30);
+    expect(find.byKey(const ValueKey('today_intake')), findsNothing,
+        reason: 'questionnaire answered, Today should not ask again');
     await d.idle(1500);
     await d.shot('today_new');
 
@@ -157,6 +181,7 @@ void main() {
 
     // ── Me: comfort settings, assisted mode ─────────────────────────
     await d.tab('Me');
+    await d.wait(find.text('Retake questionnaire'), why: 'retake questionnaire on Me');
     await d.shot('me');
     await d.toggle('High contrast');
     await d.shot('me_high_contrast');
@@ -257,6 +282,10 @@ void main() {
     await d.wait(find.text('Recent attempts'), why: 'patient detail', seconds: 20);
     await d.idle(1500);
     await d.shot('patient_detail');
+    await d.wait(find.textContaining('speech delay pack'), why: 'condition pill');
+    await d.wait(find.text('Intake summary'), why: 'intake summary section');
+    await d.wait(find.textContaining('First words: Before 1½ years.'), why: 'intake summary text');
+    await d.shot('patient_intake');
     expect(find.text('No attempts recorded yet'), findsNothing,
         reason: 'therapist cannot see the attempts the child made');
     await d.type('Home practice guidance', 'Practise ப and ம words with picture cards.');
@@ -349,6 +378,14 @@ class Driver {
   }
 
   Future<void> tapText(String s) => tap(find.text(s), why: s);
+
+  /// Intake questionnaire: pick [option], then press [next].
+  Future<void> answer(String option, {String next = 'Next'}) async {
+    await shot('intake_${option.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_')}');
+    await tapText(option);
+    await tap(find.widgetWithText(AphButton, next), why: 'intake $next after "$option"');
+    await idle(400);
+  }
 
   Future<void> tab(String label) => tap(
         find.descendant(of: find.byType(NavigationBar), matching: find.text(label)),
